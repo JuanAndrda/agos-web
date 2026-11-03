@@ -402,7 +402,7 @@ select[aria-invalid="true"] {
 .filter-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 0 16px;
+  gap: 12px 16px;
 }
 .filter-row .field {
   margin-bottom: 0;
@@ -577,6 +577,9 @@ select[aria-invalid="true"] {
   gap: 8px;
   margin-top: auto;
   padding-top: 16px;
+}
+.listing-actions .btn {
+  padding: 8px 12px;
 }
 .listing-form {
   margin: 16px 0 24px;
