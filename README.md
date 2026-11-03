@@ -20,6 +20,8 @@ Read **[EXPLAINED.md](EXPLAINED.md)** for a plain-English explanation of every f
 
 ## Setup (once)
 
+Important: there is no `package.json` in the main `agos-web` folder. Run `npm` commands inside `server` or `client`. If `npm` says it "could not read package.json", you are in the wrong folder.
+
 1. **Install the packages** in both folders:
    ```
    cd server
@@ -27,12 +29,27 @@ Read **[EXPLAINED.md](EXPLAINED.md)** for a plain-English explanation of every f
    cd ../client
    npm install
    ```
-2. **Set up Firebase** at https://console.firebase.google.com:
-   - Create a project, then add a **Web app** and keep its config open.
-   - Build → **Authentication** → Get started → turn on **Email/Password**.
-   - Build → **Firestore Database** → Create database.
-   - Firestore → **Rules**: paste everything from [`firestore.rules`](firestore.rules) and click Publish.
-3. **Add the keys:** in the `client` folder, copy `.env.example` to a new file named `.env` and paste your Firebase config values after each `=`. The `.env` file is in `.gitignore`, so it never goes to GitHub. Never paste the keys in chat.
+2. **Set up Firebase** (about 10 minutes):
+   1. **Create the project:** go to https://console.firebase.google.com and sign in with Google. Click **Create a project**, name it `agos-web`, turn **Google Analytics off** (we don't need it), and click **Create project**.
+   2. **Get the keys:** on the project's home page, click the **`</>`** (Web) icon. Type the nickname `agos-web`, leave "Firebase Hosting" unticked, and click **Register app**. Firebase shows code like `const firebaseConfig = { apiKey: "...", ... }`. Keep that page open for step 3.
+   3. **Turn on login:** in the left menu, go to **Build → Authentication → Get started**. Click **Email/Password**, switch on the first **Enable** toggle, and click **Save**.
+   4. **Create the database:** go to **Build → Firestore Database → Create database**. If it asks for an edition, pick **Standard**. Choose the location **asia-southeast1 (Singapore)**, the closest to Iloilo. Choose **Start in production mode** and click **Create**.
+   5. **Paste the security rules:** in Firestore, open the **Rules** tab and delete what's there. Open [`firestore.rules`](firestore.rules) from this folder (for example `notepad firestore.rules`), copy everything in it, paste it into the Rules tab, and click **Publish**.
+3. **Add the keys:** in Command Prompt, go into the `client` folder and run:
+   ```
+   copy .env.example .env
+   notepad .env
+   ```
+   Copy each value from the Firebase page (step 2.2) into the matching line, with no quotes, spaces or commas:
+   ```
+   REACT_APP_FIREBASE_API_KEY=      ← apiKey
+   REACT_APP_FIREBASE_AUTH_DOMAIN=  ← authDomain
+   REACT_APP_FIREBASE_PROJECT_ID=   ← projectId
+   REACT_APP_FIREBASE_APP_ID=       ← appId
+   ```
+   Save and close. The `.env` file is in `.gitignore`, so it never goes to GitHub. Never paste the keys in chat.
+4. **Restart the React app** if it was running: press **Ctrl + C**, type **Y**, then run `npm start` again. React only reads `.env` when it starts.
+5. **Try it:** on the page that opens, click **Create one** and register as a Farmer.
 
 ## Run it (every time)
 
