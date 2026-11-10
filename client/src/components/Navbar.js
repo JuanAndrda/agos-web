@@ -33,7 +33,11 @@ function Navbar() {
           {user ? (
             <>
               <span className="user-name">
-                {user.name || user.email}
+                {/* A long name is cut short with "..." by App.css. "title" shows the full name
+                    when you point at it with the mouse. */}
+                <span className="user-name-text" title={user.name || user.email}>
+                  {user.name || user.email}
+                </span>
                 {user.role && <span className="role-badge">{user.role === "farmer" ? "Farmer" : "Buyer"}</span>}
               </span>
               <button type="button" className="btn btn-light" onClick={handleLogout}>

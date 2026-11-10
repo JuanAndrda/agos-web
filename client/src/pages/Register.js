@@ -1,9 +1,13 @@
 // Register.js: the sign-up page. The person chooses Farmer or Buyer.
 // register() makes the login in Firebase Authentication and saves the name and role in Firestore.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { register, friendlyAuthError } from "../services/authService";
+
+// The fields in the order they appear on screen. Each one is also the id of its input
+// (for "role", the Farmer choice has id="role").
+const FIELD_ORDER = ["name", "email", "password", "role"];
 
 function Register() {
   const { user, refreshUser } = useAuth();
@@ -11,26 +15,50 @@ function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({}); // one message per wrong field, like { name: "..." }
+  const [error, setError] = useState(""); // a message from Firebase, like "This email already has an account."
   const [saving, setSaving] = useState(false);
+
+  // The name in the browser tab
+  useEffect(() => {
+    document.title = "Create an account · AgosUgnayan Web";
+  }, []);
+
+  // After a failed try, put the cursor in the first field that needs fixing
+  useEffect(() => {
+    const firstProblem = FIELD_ORDER.find((field) => errors[field]);
+    if (firstProblem) document.getElementById(firstProblem).focus();
+  }, [errors]);
 
   // Logged in and done saving? Go to the prices.
   if (user && !saving && !error) return <Navigate to="/prices" replace />;
 
-  // Returns a message for the first problem in the form, or "" if it's fine
+  // Returns an object with one message per wrong field (empty when everything is fine).
+  // Same idea as checkForm() in ListingForm.js, so both forms behave the same way.
   function checkForm() {
-    if (!name.trim()) return "Please enter your name.";
-    if (!email.trim()) return "Please enter your email.";
-    if (password.length < 6) return "Your password must be at least 6 characters.";
-    if (!role) return "Please choose Farmer or Buyer.";
-    return "";
+    const problems = {};
+    if (!name.trim()) problems.name = "Please enter your name.";
+    if (!email.trim()) problems.email = "Please enter your email.";
+    if (password.length < 6) problems.password = "Your password must be at least 6 characters.";
+    if (!role) problems.role = "Please choose Farmer or Buyer.";
+    return problems;
+  }
+
+  // Shows the message under a field when it has a problem
+  function fieldError(field) {
+    return errors[field] ? (
+      <p id={`${field}-error`} className="field-error">
+        {errors[field]}
+      </p>
+    ) : null;
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    const problem = checkForm();
-    setError(problem);
-    if (problem) return;
+    setError("");
+    const problems = checkForm();
+    setErrors(problems);
+    if (Object.keys(problems).length > 0) return; // stop: something needs fixing
 
     setSaving(true);
     try {
@@ -47,6 +75,11 @@ function Register() {
       <h1>Create an account</h1>
       <p className="muted">It's free. Farmers post crops, and buyers look for crops to buy.</p>
 
+      {Object.keys(errors).length > 0 && (
+        <p className="form-error" role="alert">
+          Please fix the fields marked below.
+        </p>
+      )}
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -62,7 +95,10 @@ function Register() {
             maxLength={60}
             value={name}
             onChange={(e) => setName(e.target.value)}
+            aria-invalid={Boolean(errors.name)}
+            aria-describedby={errors.name ? "name-error" : undefined}
           />
+          {fieldError("name")}
         </div>
         <div className="field">
           <label htmlFor="email">Email</label>
@@ -72,7 +108,10 @@ function Register() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? "email-error" : undefined}
           />
+          {fieldError("email")}
         </div>
         <div className="field">
           <label htmlFor="password">Password</label>
@@ -80,19 +119,26 @@ function Register() {
             id="password"
             type="password"
             autoComplete="new-password"
-            aria-describedby="password-help"
+            aria-invalid={Boolean(errors.password)}
+            aria-describedby={errors.password ? "password-error" : "password-help"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <p id="password-help" className="help">
-            At least 6 characters.
-          </p>
+          {fieldError("password") || (
+            <p id="password-help" className="help">
+              At least 6 characters.
+            </p>
+          )}
         </div>
 
-        <fieldset className="field role-choice">
+        <fieldset
+          className="field role-choice"
+          aria-describedby={errors.role ? "role-error" : undefined}
+        >
           <legend>I am a...</legend>
           <label className={role === "farmer" ? "role-option selected" : "role-option"}>
             <input
+              id="role"
               type="radio"
               name="role"
               value="farmer"
@@ -117,6 +163,7 @@ function Register() {
               <span className="muted">I buy crops for my business or home</span>
             </span>
           </label>
+          {fieldError("role")}
         </fieldset>
 
         <button type="submit" className="btn btn-primary btn-block" disabled={saving}>

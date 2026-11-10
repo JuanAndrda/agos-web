@@ -13,6 +13,9 @@ const EMPTY_FORM = {
   status: "available",
 };
 
+// The fields in the order they appear on screen, so we can find the first one with a problem
+const FIELD_ORDER = ["crop", "town", "quantityKg", "pricePerKg", "notes"];
+
 // Returns an object with one message per wrong field, like { pricePerKg: "..." }
 function checkForm(form) {
   const errors = {};
@@ -47,6 +50,13 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
   useEffect(() => {
     formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  // After a failed save, put the cursor in the first field that needs fixing.
+  // This helps people who use the keyboard or a screen reader find the problem.
+  useEffect(() => {
+    const firstProblem = FIELD_ORDER.find((name) => errors[name]);
+    if (firstProblem) document.getElementById(firstProblem).focus();
+  }, [errors]);
 
   // One change handler for every field: the input's "name" says which field to update
   function handleChange(event) {

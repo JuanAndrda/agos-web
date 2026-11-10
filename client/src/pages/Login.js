@@ -1,6 +1,6 @@
 // Login.js: the log-in page. It checks the form, calls login() from authService,
 // and shows a friendly message if Firebase says no.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { login, friendlyAuthError } from "../services/authService";
@@ -11,6 +11,11 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // The name in the browser tab
+  useEffect(() => {
+    document.title = "Log in · AgosUgnayan Web";
+  }, []);
 
   // Already logged in? Go to the prices. (This also runs right after a successful login.)
   if (user) return <Navigate to="/prices" replace />;

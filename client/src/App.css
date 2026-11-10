@@ -116,6 +116,9 @@ a {
 }
 .nav-links a,
 .nav-user > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px; /* big enough to tap on a phone */
   padding: 8px 12px;
   border-radius: 8px;
   text-decoration: none;
@@ -137,9 +140,20 @@ a {
   margin-left: auto;
 }
 .user-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
   font-size: 0.9rem;
 }
+/* A long name is cut short with "..." so the navbar stays tidy */
+.user-name-text {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .role-badge {
+  flex-shrink: 0;
   margin-left: 8px;
   padding: 2px 8px;
   border-radius: 999px;
@@ -195,7 +209,7 @@ a {
   background: #fff;
   color: var(--gdark);
   padding: 6px 12px;
-  min-height: 36px;
+  white-space: nowrap; /* "Log out" stays on one line */
 }
 .btn-danger {
   background: var(--surface);
@@ -458,11 +472,18 @@ select[aria-invalid="true"] {
   font-weight: 600;
   color: var(--gdark);
 }
+/* The crop names in the table: a bigger area to tap, without changing how they look */
+.price-table td a {
+  display: inline-block;
+  padding: 12px 0;
+  margin: -12px 0;
+}
 
 /* ---------- Crop Details ---------- */
 .back-link {
   display: inline-block;
-  margin-bottom: 12px;
+  padding: 10px 0; /* a bigger area to tap */
+  margin: -10px 0 2px;
 }
 .details-grid {
   display: grid;
@@ -598,6 +619,15 @@ select[aria-invalid="true"] {
   gap: 8px;
 }
 
+/* ---------- Smaller laptops and tablets ---------- */
+/* Not enough room for everything on one row: the page links move to their own row */
+@media (max-width: 980px) {
+  .nav-links {
+    order: 3;
+    flex-basis: 100%;
+  }
+}
+
 /* ---------- Phones ---------- */
 @media (max-width: 600px) {
   h1 {
@@ -606,12 +636,35 @@ select[aria-invalid="true"] {
   .content {
     padding: 20px 16px 40px;
   }
+  /* The navbar in 3 short rows: [AgosUgnayan ... Log out], [name and badge], [page links] */
   .navbar-inner {
-    padding: 10px 16px;
+    padding: 8px 16px;
+    gap: 4px 12px;
+  }
+  .nav-user {
+    display: contents; /* lets the name and the Log out button sit in different rows */
+  }
+  .nav-user .btn-light,
+  .nav-user > a {
+    order: 1;
+    margin-left: auto;
+  }
+  .user-name {
+    order: 2;
+    flex-basis: 100%;
+  }
+  .user-name-text {
+    max-width: calc(100% - 80px); /* leave room for the Farmer or Buyer badge */
   }
   .nav-links {
-    order: 3;
-    flex-basis: 100%;
+    gap: 2px;
+  }
+  /* The page links share the row equally */
+  .nav-links a {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 8px 4px;
+    white-space: nowrap;
   }
   .auth-card {
     padding: 20px;

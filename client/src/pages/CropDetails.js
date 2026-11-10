@@ -3,15 +3,22 @@
 // The crop name comes from the URL: /crops/Tomato -> cropName = "Tomato".
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CROPS } from "../constants";
+import { CROPS, formatPeso } from "../constants";
 import { getCropInfo } from "../services/wikipediaService";
 import { getPriceHistory } from "../services/pricesService";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
 
 function CropDetails() {
-  const { cropName } = useParams();
-  const knownCrop = CROPS.includes(cropName);
+  const { cropName: nameInUrl } = useParams();
+  // Find the crop whatever the capital letters are: /crops/tomato shows "Tomato"
+  const cropName = CROPS.find((crop) => crop.toLowerCase() === nameInUrl.toLowerCase());
+  const knownCrop = Boolean(cropName);
+
+  // The name in the browser tab
+  useEffect(() => {
+    document.title = `${cropName || "Crop not found"} · AgosUgnayan Web`;
+  }, [cropName]);
 
   // Wikipedia part
   const [info, setInfo] = useState(null);
@@ -63,7 +70,7 @@ function CropDetails() {
           ← Back to Market Prices
         </Link>
         <div className="empty">
-          <p>We don't have a crop called "{cropName}". Choose one from the Market Prices list.</p>
+          <p>We don't have a crop called "{nameInUrl}". Choose one from the Market Prices list.</p>
         </div>
       </section>
     );
@@ -119,7 +126,7 @@ function CropDetails() {
           {!pricesLoading && !pricesError && latest && (
             <>
               <p className="big-price">
-                ₱{latest.pricePerKg.toFixed(2)} <span>per kg</span>
+                ₱{formatPeso(latest.pricePerKg)} <span>per kg</span>
               </p>
               <p className="muted small">Newest PSA price: {latest.month}</p>
               <div className="table-wrap">
@@ -137,7 +144,7 @@ function CropDetails() {
                     {history.map((p) => (
                       <tr key={p.monthKey}>
                         <td>{p.month}</td>
-                        <td className="num price">₱{p.pricePerKg.toFixed(2)}</td>
+                        <td className="num price">₱{formatPeso(p.pricePerKg)}</td>
                       </tr>
                     ))}
                   </tbody>

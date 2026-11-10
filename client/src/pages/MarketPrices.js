@@ -6,6 +6,7 @@ import { getPrices } from "../services/pricesService";
 import SearchBar from "../components/SearchBar";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
+import { formatPeso } from "../constants";
 
 function MarketPrices() {
   const [prices, setPrices] = useState([]);
@@ -14,6 +15,11 @@ function MarketPrices() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState(""); // what is typed in the box
   const [searched, setSearched] = useState(""); // the search the table is showing
+
+  // The name in the browser tab
+  useEffect(() => {
+    document.title = "Market Prices · AgosUgnayan Web";
+  }, []);
 
   // useCallback keeps the same function between redraws, so useEffect below runs only once
   const loadPrices = useCallback(async (text) => {
@@ -49,7 +55,11 @@ function MarketPrices() {
       </p>
       <p className="muted small">
         PSA updates these prices once a month, a few months late. They are a guide, not today's price.
-        {checkedAt && ` Last checked from PSA: ${new Date(checkedAt).toLocaleString("en-PH")}.`}
+        {checkedAt &&
+          ` Last checked from PSA: ${new Date(checkedAt).toLocaleString("en-PH", {
+            dateStyle: "medium", // "Nov 5, 2026", so nobody mixes up the day and the month
+            timeStyle: "short", // "2:14 AM"
+          })}.`}
       </p>
 
       <SearchBar
@@ -101,7 +111,7 @@ function MarketPrices() {
                       <Link to={`/crops/${p.crop}`}>{p.crop}</Link>
                     </td>
                     <td>{p.month}</td>
-                    <td className="num price">₱{p.pricePerKg.toFixed(2)}</td>
+                    <td className="num price">₱{formatPeso(p.pricePerKg)}</td>
                   </tr>
                 ))}
               </tbody>

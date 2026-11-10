@@ -26,6 +26,11 @@ function Marketplace() {
   const [maxPrice, setMaxPrice] = useState("");
   const [sort, setSort] = useState("newest");
 
+  // The name in the browser tab
+  useEffect(() => {
+    document.title = "Marketplace · AgosUgnayan Web";
+  }, []);
+
   const loadListings = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -57,6 +62,9 @@ function Marketplace() {
   if (sort === "price-high") shown.sort((a, b) => b.pricePerKg - a.pricePerKg);
 
   const filtersOn = text !== "" || town !== "" || minPrice !== "" || maxPrice !== "";
+
+  // A max price below the min price can never match anything, so we explain it
+  const priceRangeWrong = minPrice !== "" && maxPrice !== "" && Number(maxPrice) < Number(minPrice);
 
   function clearFilters() {
     setSearch("");
@@ -103,7 +111,14 @@ function Marketplace() {
               inputMode="decimal"
               value={maxPrice}
               onChange={(e) => setMaxPrice(e.target.value)}
+              aria-invalid={priceRangeWrong}
+              aria-describedby={priceRangeWrong ? "max-price-error" : undefined}
             />
+            {priceRangeWrong && (
+              <p id="max-price-error" className="field-error">
+                Max price can't be lower than min price.
+              </p>
+            )}
           </div>
           <div className="field">
             <label htmlFor="sort">Sort by</label>
@@ -138,7 +153,11 @@ function Marketplace() {
 
           {shown.length === 0 ? (
             <div className="empty">
-              <p>No listings match your filters.</p>
+              <p>
+                {priceRangeWrong
+                  ? "The max price is lower than the min price. Change one of them, or clear the filters."
+                  : "No listings match your filters."}
+              </p>
               <button type="button" className="btn btn-secondary" onClick={clearFilters}>
                 Clear filters
               </button>

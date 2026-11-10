@@ -34,6 +34,11 @@ function MyListings() {
   const [actionError, setActionError] = useState("");
   const [busyId, setBusyId] = useState(null); // the listing that is being changed right now
 
+  // The name in the browser tab
+  useEffect(() => {
+    document.title = "My Listings · AgosUgnayan Web";
+  }, []);
+
   const loadListings = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -150,7 +155,7 @@ function MyListings() {
           {listings.map((listing) => {
             const busy = busyId === listing.id;
             return (
-              <ListingCard key={listing.id} listing={listing}>
+              <ListingCard key={listing.id} listing={listing} showFarmer={false}>
                 <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => openForm(listing)}>
                   Edit
                 </button>

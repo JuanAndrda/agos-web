@@ -138,6 +138,8 @@ Reads the keys from `.env`, starts Firebase with `initializeApp`, and exports `a
 ### `src/constants.js`: fixed lists
 `CROPS` (the same 10 crops as the server) and `TOWNS` (44 places in Iloilo). The forms use dropdowns from these lists, so nobody types "Tomatoes" or misspells a town. Every listing then links to a real crop page.
 
+It also has one small helper, `formatPeso(1500)`, which gives `"1,500.00"`: two decimals and a comma every 3 digits, the way people in the Philippines read prices. Market Prices, Crop Details and the listing cards all use it, so prices look the same everywhere.
+
 ### `src/context/AuthContext.js`: who is logged in
 - **What a context is:** data that many pages need, shared without passing it from page to page.
 - `onAuthStateChanged` is like a doorbell: Firebase rings it when someone logs in or out. We then read their profile (`name`, `role`) from Firestore.
@@ -163,23 +165,25 @@ The frame every page sits in: `Navbar`, then the page (`children`), then `Footer
 ### `src/components/`: reusable pieces
 | File | What it does |
 |---|---|
-| `Navbar.js` | The green top bar. Uses `NavLink`, which highlights the page you're on. Shows My Listings only to farmers, plus the person's name, role and Log out. Moving between pages doesn't reload the page, so our app is a single-page application (SPA). |
+| `Navbar.js` | The green top bar. Uses `NavLink`, which highlights the page you're on. Shows My Listings only to farmers, plus the person's name, role and Log out. A long name is cut short with "…" so the bar stays tidy, and the full name shows when you point at it (the `title` attribute). Moving between pages doesn't reload the page, so our app is a single-page application (SPA). |
 | `Footer.js` | Says where our data comes from (PSA, monthly, not real-time; Wikipedia). |
 | `Loading.js` | A spinner and text while we wait for an API. |
 | `ErrorMessage.js` | A red box with the problem and a "Try again" button. |
 | `ProtectedRoute.js` | A guard. Not logged in → `/login`. A buyer opening My Listings → `/marketplace`. |
 | `SearchBar.js` | A labelled search box. With `onSubmit` it has a Search button (Market Prices); without it, the page filters as you type (Marketplace). |
-| `ListingCard.js` | One listing as a card: crop, price, kilos, town, harvest date, farmer, notes, and "Available" or "Sold" written in words (not color alone). My Listings adds its buttons as `children`. |
-| `ListingForm.js` | The post and edit form. `checkForm` explains every wrong field ("Choose your town."). The edit form also has a Status field, so a farmer can change "Sold" back to "Available". It scrolls into view when it opens. |
+| `ListingCard.js` | One listing as a card: crop, price, kilos, town, harvest date, farmer, notes, and "Available" or "Sold" written in words (not color alone). My Listings adds its buttons as `children`, and hides the Farmer line with `showFarmer={false}` (every listing there is your own). |
+| `ListingForm.js` | The post and edit form. `checkForm` explains every wrong field ("Choose your town."). The edit form also has a Status field, so a farmer can change "Sold" back to "Available". It scrolls into view when it opens. After a failed save, a `useEffect` puts the cursor in the first wrong field, which helps keyboard and screen reader users. |
 
 ### `src/pages/`: one file per screen
 Every page that uses an API follows the same pattern. **State** for the data, loading and error → **`useEffect`** to load when the page opens → call a **service** → show **loading, error, empty, or the data**. Once you understand one page, the others read the same way.
 
+Every page also sets the name in the browser tab, like "Market Prices · AgosUgnayan Web", with one small `useEffect` that changes `document.title`.
+
 - **`Login.js`**: email and password. Checks that both are filled, calls `login()`, and shows Firebase errors in plain words.
-- **`Register.js`**: name, email, password (6+ characters) and a Farmer/Buyer choice. Calls `register()`, then `refreshUser()`.
-- **`MarketPrices.js`**: the newest PSA farmgate price of each crop, with search. Always shows the source ("PSA OpenSTAT"), the month of each price, and when our server last checked PSA. `useCallback` keeps `loadPrices` the same between redraws, so `useEffect` runs only once.
-- **`CropDetails.js`**: uses two APIs at the same time. The left card is Wikipedia (photo and description). The right card is our server (`GET /api/prices/Tomato`): the newest price and the last 12 months. Each card has its own loading and error, so if Wikipedia is down, the prices still show.
-- **`Marketplace.js`**: loads every available listing once, then searches, filters (town, min and max price) and sorts (newest, price low→high, high→low) in React with `.filter()` and `.sort()`. Shows "Showing 2 of 5 listings" and a Clear filters button.
+- **`Register.js`**: name, email, password (6+ characters) and a Farmer/Buyer choice. `checkForm()` finds every problem at once and shows each one under its own field, the same way as the listing form, then puts the cursor in the first one. Calls `register()`, then `refreshUser()`.
+- **`MarketPrices.js`**: the newest PSA farmgate price of each crop, with search. Always shows the source ("PSA OpenSTAT"), the month of each price, and when our server last checked PSA, written as "Nov 5, 2026, 2:14 AM" so nobody mixes up the day and the month. `useCallback` keeps `loadPrices` the same between redraws, so `useEffect` runs only once.
+- **`CropDetails.js`**: uses two APIs at the same time. It finds the crop whatever the capital letters are, so `/crops/tomato` also works. The left card is Wikipedia (photo and description). The right card is our server (`GET /api/prices/Tomato`): the newest price and the last 12 months. Each card has its own loading and error, so if Wikipedia is down, the prices still show.
+- **`Marketplace.js`**: loads every available listing once, then searches, filters (town, min and max price) and sorts (newest, price low→high, high→low) in React with `.filter()` and `.sort()`. Shows "Showing 2 of 5 listings" and a Clear filters button. If the max price is lower than the min price, it says so under the Max field instead of just showing "no listings".
 - **`MyListings.js`**: the farmer's own listings with all of CRUD. **Post a crop** (Create), the list (Read), **Edit** and **Mark as sold** (Update), **Delete**. Delete asks "This can't be undone" first. Every action shows a success or error message, and the buttons are disabled while it saves.
 
 ---
@@ -232,17 +236,39 @@ The code follows the study guide. These are the places where it differs:
 
 ---
 
-## 9. What was tested, and what wasn't
+## 9. Usability fixes after the heuristic check (Nov 10)
+On Nov 5 we checked every page against Nielsen's 10 usability heuristics and found 13 problems (the full report is the "AgosUgnayan Web: Heuristic Check" doc). Juan approved fixing problems 2 to 11. These are the changes. None of them adds a feature or changes the database.
+
+| # | The problem | What we changed | File |
+|---|---|---|---|
+| 2 | On a phone the top bar took a quarter of the screen, and a long name pushed My Listings to a new row | A long name is cut with "…". On phones the bar has 3 short rows: [AgosUgnayan, Log out], [name, badge], [the 3 links on one row]. Below 980 pixels wide, the links get their own row instead of wrapping. On a phone the bar went from 222 to 134 pixels tall. | `Navbar.js`, `App.css` |
+| 3 | Some links were too small to tap (20 to 40 pixels tall) | The navbar links, Log out, the crop names in the price table and "Back to Market Prices" are now at least 44 pixels tall to tap. They look the same. | `App.css` |
+| 4 | After a failed "Post listing", the cursor stayed on the button | The cursor moves to the first wrong field. | `ListingForm.js` |
+| 5 | Min price above max price only said "No listings match" | It says "Max price can't be lower than min price." under the Max field. | `Marketplace.js` |
+| 6 | Register showed one problem at a time, at the top | Every problem shows under its own field, like the listing form. | `Register.js` |
+| 7 | The browser tab always said "AgosUgnayan Web" | Each page has its own tab name. | the 6 files in `pages/` |
+| 8 | "11/5/2026" can mean Nov 5 or May 11 | It now says "Nov 5, 2026, 2:14 AM". | `MarketPrices.js` |
+| 9 | Big prices had no comma ("₱1500.00") | "₱1,500.00" and "2,500 kg", using `formatPeso`. | `constants.js`, `MarketPrices.js`, `CropDetails.js`, `ListingCard.js` |
+| 10 | Every card on My Listings said "Farmer: your own name" | The Farmer line is hidden on My Listings only. | `ListingCard.js`, `MyListings.js` |
+| 11 | `/crops/tomato` said the crop didn't exist | Capital letters don't matter anymore. | `CropDetails.js` |
+
+**Tested:** 49 checks in a browser with the local test tools: every fix above, plus register, login, search, Crop Details, post, edit, mark as sold, filters and Clear filters still working. Laptop sizes 1280, 1024 and 900 pixels wide, a tablet (768) and phones (390, 360 and 320). There was no sideways scrolling, no JavaScript errors, and the build has no warnings.
+
+**To undo all of these fixes with Git:** `git revert` the commit named "Usability fixes from the heuristic check". The version before the fixes is also saved with the tag `v1-before-usability-fixes`.
+
+---
+
+## 10. What was tested, and what wasn't
 Tested on a computer without the real services, using stand-ins:
 - **Server:** with a fake PSA that answers in PSA's real format. All endpoints, the search check (400), unknown crop (404), PSA down (502), the 1-hour cache (4 requests, PSA called only once per table) and the busy-port message.
 - **The whole app in a browser,** with Firebase's official local test tools (emulators): register, login, wrong password, every page, search, filters, sort, all CRUD actions, buyer vs farmer access, error screens, and phone size (no sideways scrolling).
 - **Security rules:** 13 checks, for example "a buyer can't delete a farmer's listing" and "a farmer can't post 0 kg".
 
-**Not tested yet:** the real PSA website and Wikipedia (our test computer couldn't reach them), and a real Firebase project. Once you add your `.env`, open http://localhost:5000/api/prices first to confirm PSA works.
+**Tested on Juan's laptop with the real services (Nov 3 and 4):** the real PSA (all 10 crops), a real Firebase project (register, log in, post, edit, mark as sold), and Crop Details with Wikipedia. Our test computer can't reach PSA or Wikipedia, so those were only checked on Juan's laptop. If prices ever stop loading, open http://localhost:5000/api/prices first to see whether PSA is answering.
 
 ---
 
-## 10. Undoing a change
+## 11. Undoing a change
 The project uses Git, with one commit per part:
 ```
 git log --oneline          # see the saved steps

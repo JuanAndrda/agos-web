@@ -1,6 +1,8 @@
 // ListingCard.js: one crop listing as a card. Used on the Marketplace and on My Listings.
 // "children" are extra buttons (Edit, Delete...) that only My Listings passes in.
+// "showFarmer" is false on My Listings, where every listing is the farmer's own.
 import { Link } from "react-router-dom";
+import { formatPeso } from "../constants";
 
 // "2026-11-18" -> "Nov 18, 2026"
 function formatDate(text) {
@@ -13,7 +15,7 @@ function formatDate(text) {
   });
 }
 
-function ListingCard({ listing, children }) {
+function ListingCard({ listing, children, showFarmer = true }) {
   const sold = listing.status === "sold";
 
   return (
@@ -29,13 +31,13 @@ function ListingCard({ listing, children }) {
       </div>
 
       <p className="listing-price">
-        ₱{Number(listing.pricePerKg).toFixed(2)} <span>per kg</span>
+        ₱{formatPeso(listing.pricePerKg)} <span>per kg</span>
       </p>
 
       <dl className="listing-facts">
         <div>
           <dt>Quantity</dt>
-          <dd>{listing.quantityKg} kg</dd>
+          <dd>{Number(listing.quantityKg).toLocaleString("en-PH")} kg</dd>
         </div>
         <div>
           <dt>Town</dt>
@@ -47,10 +49,12 @@ function ListingCard({ listing, children }) {
             <dd>{formatDate(listing.harvestDate)}</dd>
           </div>
         )}
-        <div>
-          <dt>Farmer</dt>
-          <dd>{listing.ownerName}</dd>
-        </div>
+        {showFarmer && (
+          <div>
+            <dt>Farmer</dt>
+            <dd>{listing.ownerName}</dd>
+          </div>
+        )}
       </dl>
 
       {listing.notes && <p className="listing-notes">{listing.notes}</p>}

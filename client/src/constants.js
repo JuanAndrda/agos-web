@@ -1,6 +1,6 @@
 // constants.js: fixed lists the forms and filters use. Choosing from a list instead of typing
 // prevents spelling mistakes (for example "Tomatoes" vs "Tomato"), so every listing matches
-// a crop on the Market Prices page.
+// a crop on the Market Prices page. At the bottom: one small helper for showing prices.
 
 // The same 10 crops our server gets prices for from PSA (server/psa.js)
 export const CROPS = [
@@ -19,3 +19,9 @@ export const TOWNS = [
   "San Rafael", "Santa Barbara", "Sara", "Tigbauan", "Tubungan", "Zarraga",
   "Passi City", "Iloilo City",
 ];
+
+// Writes a price the way people in the Philippines read it: 1500 -> "1,500.00"
+// (add "₱" in front where you use it). Used on Market Prices, Crop Details and the listing cards.
+export function formatPeso(amount) {
+  return Number(amount).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
