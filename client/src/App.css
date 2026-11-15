@@ -585,6 +585,14 @@ select[aria-invalid="true"] {
   margin: 0;
   font-weight: 500;
 }
+/* The farmer's number: a big enough area to tap, on one line */
+.contact-link {
+  display: inline-block;
+  padding: 10px 0;
+  margin: -10px 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .listing-notes {
   margin: 12px 0 0;
   padding: 8px 12px;

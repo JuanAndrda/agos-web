@@ -64,7 +64,7 @@ Our app has three parts that talk to each other. In Unit 2 terms, it is a **3-ti
 - **Used in code:** `firebase.js` connects once. `authService.js` and `listingsService.js` use it.
 - **Our data (Firestore):** two collections. A collection is like a folder, and each document inside is like an index card with JSON.
   - `users/{uid}`: `{ name, email, role }`, where role is `"farmer"` or `"buyer"`. The document ID is the same as the login ID.
-  - `listings/{auto id}`: `{ crop, quantityKg, pricePerKg, town, harvestDate, notes, status, ownerId, ownerName, createdAt }`, where status is `"available"` or `"sold"`.
+  - `listings/{auto id}`: `{ crop, quantityKg, pricePerKg, town, harvestDate, contactNumber, notes, status, ownerId, ownerName, createdAt }`, where status is `"available"` or `"sold"` and `contactNumber` is the farmer's mobile number, saved as digits only (like `"09171234567"`).
 
 ### PSA OpenSTAT (through our Express server)
 - **Added by:** `npm init -y` and `npm install express cors` in `server/`, plus `"type": "module"` in its package.json so we can write `import`. No key is needed, and Node 18+ already has `fetch`.
@@ -171,8 +171,8 @@ The frame every page sits in: `Navbar`, then the page (`children`), then `Footer
 | `ErrorMessage.js` | A red box with the problem and a "Try again" button. |
 | `ProtectedRoute.js` | A guard. Not logged in → `/login`. A buyer opening My Listings → `/marketplace`. |
 | `SearchBar.js` | A labelled search box. With `onSubmit` it has a Search button (Market Prices); without it, the page filters as you type (Marketplace). |
-| `ListingCard.js` | One listing as a card: crop, price, kilos, town, harvest date, farmer, notes, and "Available" or "Sold" written in words (not color alone). My Listings adds its buttons as `children`, and hides the Farmer line with `showFarmer={false}` (every listing there is your own). |
-| `ListingForm.js` | The post and edit form. `checkForm` explains every wrong field ("Choose your town."). The edit form also has a Status field, so a farmer can change "Sold" back to "Available". It scrolls into view when it opens. After a failed save, a `useEffect` puts the cursor in the first wrong field, which helps keyboard and screen reader users. |
+| `ListingCard.js` | One listing as a card: crop, price, kilos, town, harvest date, farmer, contact number, notes, and "Available" or "Sold" written in words (not color alone). The number is a `tel:` link, so on a phone one tap opens the phone app to call or text. `formatPhone` writes it as "0917 123 4567" so it's easy to read. My Listings adds its buttons as `children`, and hides the Farmer and Contact lines with `showFarmer={false}` (every listing there is your own). |
+| `ListingForm.js` | The post and edit form. `checkForm` explains every wrong field ("Choose your town."). The Contact number must be a Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX); `cleanNumber` removes spaces and dashes first, so "0917-123 4567" is fine. The edit form also has a Status field, so a farmer can change "Sold" back to "Available". It scrolls into view when it opens. After a failed save, a `useEffect` puts the cursor in the first wrong field, which helps keyboard and screen reader users. |
 
 ### `src/pages/`: one file per screen
 Every page that uses an API follows the same pattern. **State** for the data, loading and error → **`useEffect`** to load when the page opens → call a **service** → show **loading, error, empty, or the data**. Once you understand one page, the others read the same way.
@@ -255,6 +255,19 @@ On Nov 5 we checked every page against Nielsen's 10 usability heuristics and fou
 **Tested:** 49 checks in a browser with the local test tools: every fix above, plus register, login, search, Crop Details, post, edit, mark as sold, filters and Clear filters still working. Laptop sizes 1280, 1024 and 900 pixels wide, a tablet (768) and phones (390, 360 and 320). There was no sideways scrolling, no JavaScript errors, and the build has no warnings.
 
 **To undo all of these fixes with Git:** `git revert` the commit named "Usability fixes from the heuristic check". The version before the fixes is also saved with the tag `v1-before-usability-fixes`.
+
+---
+
+### The Contact number (Nov 15)
+The heuristic check's biggest problem (number 1) was that **a buyer had no way to contact the farmer**: they could find pechay in Pototan, but couldn't take the next step and buy it. Juan approved adding a contact number.
+
+- **What changed for farmers:** the Post and Edit form has a new required field, **Contact number**. The help text under it says who will see it: "Logged-in buyers will see it, so they can call or text you." A wrong number gets a clear message ("Enter your mobile number, like 0917 123 4567.") and the cursor moves to the field.
+- **What changed for buyers:** each Marketplace card shows **Contact: 0917 123 4567**. On a phone, tapping it opens the phone app (that's what a `tel:` link does).
+- **The database:** listings have one more field, `contactNumber`. Firestore doesn't need any setup for a new field: the next listing saved simply has it. **The security rules didn't change**, and only logged-in users can read listings, so the number isn't public on the internet.
+- **Older listings** (posted before Nov 15) have no number. Their card just doesn't show a Contact line. When the farmer opens Edit, the form asks for the number before it saves.
+- **Files:** `ListingForm.js` (the field, `cleanNumber` and the check), `ListingCard.js` (`formatPhone` and the `tel:` link), `App.css` (`.contact-link`, a 44-pixel tap area that stays on one line).
+- **Tested:** 59 browser checks, including all 49 earlier ones. The new ones cover: the number is required, a wrong number is caught, spaces and dashes are allowed, the card shows "0917 123 4567" with a `tel:` link, +63 numbers, an older listing without a number, editing an older listing, no Contact line on My Listings, and tapping the number on a phone.
+- **To undo just this change with Git:** `git revert` the commit named "Listings: contact number so buyers can reach the farmer". The version before it is saved with the tag `v2-before-contact-number`.
 
 ---
 

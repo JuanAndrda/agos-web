@@ -1,6 +1,7 @@
 // ListingCard.js: one crop listing as a card. Used on the Marketplace and on My Listings.
 // "children" are extra buttons (Edit, Delete...) that only My Listings passes in.
-// "showFarmer" is false on My Listings, where every listing is the farmer's own.
+// "showFarmer" is false on My Listings, where every listing is the farmer's own,
+// so we hide the farmer's name and contact number there.
 import { Link } from "react-router-dom";
 import { formatPeso } from "../constants";
 
@@ -13,6 +14,14 @@ function formatDate(text) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+// "09171234567" -> "0917 123 4567", easier to read (and "+639171234567" -> "+63 917 123 4567")
+function formatPhone(number) {
+  if (number.startsWith("+63")) {
+    return `+63 ${number.slice(3, 6)} ${number.slice(6, 9)} ${number.slice(9)}`;
+  }
+  return `${number.slice(0, 4)} ${number.slice(4, 7)} ${number.slice(7)}`;
 }
 
 function ListingCard({ listing, children, showFarmer = true }) {
@@ -53,6 +62,18 @@ function ListingCard({ listing, children, showFarmer = true }) {
           <div>
             <dt>Farmer</dt>
             <dd>{listing.ownerName}</dd>
+          </div>
+        )}
+        {/* Older listings were posted before we added the number, so we check that there is one */}
+        {showFarmer && listing.contactNumber && (
+          <div>
+            <dt>Contact</dt>
+            <dd>
+              {/* "tel:" opens the phone app on a phone, so the buyer can call or text in one tap */}
+              <a href={`tel:${listing.contactNumber}`} className="contact-link">
+                {formatPhone(listing.contactNumber)}
+              </a>
+            </dd>
           </div>
         )}
       </dl>
