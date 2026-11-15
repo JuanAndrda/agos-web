@@ -1,12 +1,17 @@
-// index.js: our Express server. React asks this server for prices, this server asks PSA,
-// cleans the answer, remembers it for one hour, and sends back only what the page needs.
+// index.js: our Express server. It has two jobs:
+// 1. Prices: React asks this server, this server asks PSA, cleans the answer, remembers it
+//    for one hour, and sends back only what the page needs.
+// 2. Listings: React sends every listing request here, and listings.js checks it and
+//    talks to Firestore.
 
 import express from "express";
 import cors from "cors";
 import { fetchPsaPrices, CROPS } from "./psa.js";
+import listingsRouter from "./listings.js";
 
 const app = express();
 app.use(cors()); // lets our React app (a different port) call this server
+app.use(express.json()); // lets the server read the JSON that React sends with POST and PATCH
 
 // ---- The cache: we keep PSA's prices for one hour so pages load fast ----
 const ONE_HOUR = 60 * 60 * 1000;
@@ -93,6 +98,9 @@ app.get("/api/prices/:crop", async (req, res) => {
   });
 });
 
+// ---- Endpoints 3 to 7: our listings API, GET, POST, PATCH and DELETE (see listings.js) ----
+app.use("/api/listings", listingsRouter);
+
 // Any other address: answer with a clear 404 instead of an HTML page
 app.use((req, res) => {
   res.status(404).json({ error: "This API address doesn't exist." });
@@ -100,6 +108,10 @@ app.use((req, res) => {
 
 // If any route crashes, answer with 500 instead of stopping the server
 app.use((error, req, res, next) => {
+  // express.json() could not read the data, because it isn't real JSON
+  if (error.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "The data sent to the server isn't valid JSON." });
+  }
   console.error(error);
   res.status(500).json({ error: "Something went wrong on the server." });
 });

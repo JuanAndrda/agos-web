@@ -1,69 +1,71 @@
-// listingsService.js: every call to the "listings" collection in Firestore lives here.
-// These six functions are the whole Create, Read, Update, Delete (CRUD) of our app.
-import {
-  collection,
-  addDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  doc,
-  query,
-  where,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "../firebase";
+// listingsService.js: every listings call lives here. Since Nov 15 these functions don't talk to
+// Firestore directly. They send HTTP requests to OUR Express server (server/listings.js), and the
+// server checks each request before it reads or writes the database.
+// The function names are the same as before, so the pages hardly changed.
+import { auth } from "../firebase";
 
-const listingsRef = collection(db, "listings");
+// Sends one request to our server and returns the JSON answer.
+// "/api/listings" works without "http://localhost:5000" because of the "proxy" line in
+// client/package.json (the same as pricesService.js).
+async function callServer(path, method = "GET", body) {
+  let response;
+  try {
+    // The token is a long code from Firebase that proves who is logged in. Our server checks it.
+    const token = await auth.currentUser.getIdToken();
+    response = await fetch("/api/listings" + path, {
+      method,
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error("We can't reach our server. Check your internet connection and try again.");
+  }
 
-// Firestore gives each document's data and ID separately. We put them together.
-function toList(snapshot) {
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    // Not JSON: usually our Express server is not running
+    throw new Error("Our listings server isn't answering right now. Please try again in a moment.");
+  }
+
+  if (!response.ok) {
+    // Our server always explains the problem in "error", like "Only farmers can do this."
+    throw new Error(data.error || "Something went wrong with the listings. Please try again.");
+  }
+  return data;
 }
 
-// READ: every listing that is still available (Marketplace page)
-export async function getAvailableListings() {
-  const snapshot = await getDocs(query(listingsRef, where("status", "==", "available")));
-  return toList(snapshot);
+// READ: GET /api/listings -> every listing that is still available (Marketplace page)
+export function getAvailableListings() {
+  return callServer("");
 }
 
-// READ: only my listings, available and sold (My Listings page)
-export async function getMyListings(uid) {
-  const snapshot = await getDocs(query(listingsRef, where("ownerId", "==", uid)));
-  return toList(snapshot);
+// READ: GET /api/listings/mine -> only my listings, available and sold (My Listings page)
+export function getMyListings() {
+  return callServer("/mine");
 }
 
-// CREATE: post a new crop
-export function addListing(form, user) {
-  return addDoc(listingsRef, {
-    ...form,
-    status: "available",
-    ownerId: user.uid,
-    ownerName: user.name,
-    createdAt: serverTimestamp(), // Firebase fills in the date and time
-  });
+// CREATE: POST /api/listings -> post a new crop. The server adds the owner, status and date.
+export function addListing(form) {
+  return callServer("", "POST", form);
 }
 
-// UPDATE: edit a listing, or mark it sold
+// UPDATE: PATCH /api/listings/abc123 -> change only the fields we send
 export function updateListing(id, changes) {
-  return updateDoc(doc(db, "listings", id), changes);
+  return callServer("/" + id, "PATCH", changes);
 }
 
 export function markSold(id) {
   return updateListing(id, { status: "sold" });
 }
 
-// DELETE: remove a listing
+// DELETE: DELETE /api/listings/abc123 -> remove a listing
 export function deleteListing(id) {
-  return deleteDoc(doc(db, "listings", id));
+  return callServer("/" + id, "DELETE");
 }
 
-// Firestore error codes in plain words
+// Our server already answers in plain words, so we show its message as it is
 export function friendlyListingError(error) {
-  if (error.code === "permission-denied") {
-    return "You can't change this listing. Only the farmer who posted it can.";
-  }
-  if (error.code === "unavailable") {
-    return "No internet connection. Check your connection and try again.";
-  }
-  return "Something went wrong with the listings. Please try again.";
+  return error.message;
 }

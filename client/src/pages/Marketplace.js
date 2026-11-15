@@ -1,17 +1,19 @@
 // Marketplace.js: every available listing, for buyers (and farmers) to browse.
-// We load the listings from Firestore once, then search, filter and sort them in React
-// with .filter() and .sort(). Nothing is sent to the database when a filter changes.
+// We load the listings from our server once (GET /api/listings), then search, filter and sort
+// them in React with .filter() and .sort(). Nothing is sent when a filter changes, so the
+// results change instantly while you type.
 import { useCallback, useEffect, useState } from "react";
-import { getAvailableListings } from "../services/listingsService";
+import { getAvailableListings, friendlyListingError } from "../services/listingsService";
 import { TOWNS } from "../constants";
 import SearchBar from "../components/SearchBar";
 import ListingCard from "../components/ListingCard";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
 
-// Firestore saves the time as a Timestamp. This gives us a number we can sort by.
+// Our server sends the time as text, like "2026-11-15T12:30:00.000Z". This turns it into a
+// number we can sort by.
 function timeOf(listing) {
-  return listing.createdAt ? listing.createdAt.toMillis() : 0;
+  return listing.createdAt ? Date.parse(listing.createdAt) : 0;
 }
 
 function Marketplace() {
@@ -35,10 +37,10 @@ function Marketplace() {
     setLoading(true);
     setError("");
     try {
-      setListings(await getAvailableListings()); // READ from Firestore
+      setListings(await getAvailableListings()); // READ: GET /api/listings
     } catch (err) {
       console.error(err);
-      setError("We couldn't load the listings. Check your connection and try again.");
+      setError(friendlyListingError(err));
     } finally {
       setLoading(false);
     }

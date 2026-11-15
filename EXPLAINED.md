@@ -14,23 +14,26 @@ Our app has three parts that talk to each other. In Unit 2 terms, it is a **3-ti
 | Middle layer (application server) | Our Express server | `server/` |
 | Data | Firestore (our database) and PSA's database | Firebase Console, PSA OpenSTAT |
 
-```
-                    ┌──────────────────────────────┐
-                    │  React app (client/)         │
-                    │  pages → services → APIs     │
-                    └──┬──────────┬─────────┬──────┘
-          login, listings│   prices │   photos│
-                         ▼          ▼         ▼
-            ┌─────────────────┐ ┌─────────┐ ┌───────────┐
-            │ Firebase Auth + │ │ Express │ │ Wikipedia │
-            │ Firestore       │ │ server  │ │ API       │
-            └─────────────────┘ └────┬────┘ └───────────┘
-                                     ▼
-                              ┌──────────────┐
-                              │ PSA OpenSTAT │
-                              └──────────────┘
-```
+Since Nov 15, **every listing request goes through our Express server**. React never touches the `listings` collection directly anymore. Only login and the `users` profiles still go straight from React to Firebase.
 
+```
+                    ┌──────────────────────────────────┐
+                    │  React app (client/)             │
+                    │  pages → services → APIs         │
+                    └──┬───────────────┬────────────┬──┘
+     login, profiles   │     prices,   │            │  photos
+                       │     listings  │            │
+                       ▼               ▼            ▼
+          ┌─────────────────┐    ┌─────────┐   ┌───────────┐
+          │ Firebase Auth + │    │ Express │   │ Wikipedia │
+          │ Firestore users │    │ server  │   │ API       │
+          └─────────────────┘    └──┬───┬──┘   └───────────┘
+                          prices    │   │   listings (Firebase Admin)
+                                    ▼   ▼
+                   ┌──────────────┐   ┌────────────────────┐
+                   │ PSA OpenSTAT │   │ Firestore listings │
+                   └──────────────┘   └────────────────────┘
+```
 **The one rule that keeps it simple:** pages never call an API directly. A page calls a function from `services/`, and the service talks to Firebase, our server or Wikipedia. If Ma'am asks "where do you call the API?", the answer is always the `services` folder.
 
 ### Three things that happen in the app, step by step
@@ -50,9 +53,12 @@ Our app has three parts that talk to each other. In Unit 2 terms, it is a **3-ti
 
 **C. A farmer posts a crop**
 1. `pages/MyListings.js` shows `components/ListingForm.js`. The form checks every field first.
-2. My Listings calls `addListing(form, user)` from `services/listingsService.js`.
-3. The service saves a new document in the `listings` collection in **Firestore**.
-4. **Firestore's security rules** (`firestore.rules`) check on Google's servers that the person is a farmer and posts as themselves. Then the page shows "Your Tomato listing is posted."
+2. My Listings calls `addListing(form)` from `services/listingsService.js`.
+3. The service asks Firebase for the person's **login token** (`getIdToken()`), a long code that proves who they are. It sends `POST /api/listings` to **our Express server**, with the form as JSON and the token in the `Authorization` header.
+4. On the server, `requireLogin` (`server/auth.js`) checks the token with Firebase Admin and reads the person's role. `requireFarmer` stops buyers with **403**.
+5. `server/listings.js` checks every field again, because anyone could send a request without our form. Wrong data gets **400** with the problems in plain words.
+6. The server saves the listing in **Firestore**. It fills in `ownerId`, `ownerName` and `createdAt` itself, so nobody can post in someone else's name. It answers **201 Created** with the saved listing.
+7. The page shows "Your Tomato listing is posted."
 
 ---
 
@@ -61,10 +67,15 @@ Our app has three parts that talk to each other. In Unit 2 terms, it is a **3-ti
 ### Firebase (Authentication + Firestore)
 - **Added by:** creating a project at console.firebase.google.com, turning on Email/Password login and Firestore, then running `npm install firebase` in `client/`.
 - **Keys:** Firebase gives a small config (apiKey, projectId...). We put it in `client/.env`, never in our code. Create React App only reads names that start with `REACT_APP_`.
-- **Used in code:** `firebase.js` connects once. `authService.js` and `listingsService.js` use it.
+- **Used in code:** `firebase.js` connects once. `authService.js` uses it for login and the `users` profiles, and `listingsService.js` uses it only to get the login token.
 - **Our data (Firestore):** two collections. A collection is like a folder, and each document inside is like an index card with JSON.
   - `users/{uid}`: `{ name, email, role }`, where role is `"farmer"` or `"buyer"`. The document ID is the same as the login ID.
-  - `listings/{auto id}`: `{ crop, quantityKg, pricePerKg, town, harvestDate, contactNumber, notes, status, ownerId, ownerName, createdAt }`, where status is `"available"` or `"sold"` and `contactNumber` is the farmer's mobile number, saved as digits only (like `"09171234567"`).
+  - `listings/{auto id}`: `{ crop, quantityKg, pricePerKg, town, harvestDate, contactNumber, notes, status, ownerId, ownerName, createdAt }`, where status is `"available"` or `"sold"` and `contactNumber` is the farmer's mobile number, saved as digits only (like `"09171234567"`). Only our server reads and writes this collection.
+
+### Firebase Admin (on our server)
+- **Added by:** `npm install firebase-admin` in `server/`, plus a secret key file from the Firebase Console (Project settings → Service accounts → **Generate new private key**), saved as `server/serviceAccountKey.json`. The key is in `.gitignore`.
+- **Why the server needs its own key:** the React keys in `client/.env` only let the browser act as the person who is logged in, and the security rules limit what they can do. The server's key gives **full access**: it can check anyone's login token and read or write any listing. That's why the server does its own checks first, and why the key must stay secret.
+- **Used in code:** `server/firebaseAdmin.js` connects once. `server/auth.js` checks login tokens. `server/listings.js` reads and writes the `listings` collection.
 
 ### PSA OpenSTAT (through our Express server)
 - **Added by:** `npm init -y` and `npm install express cors` in `server/`, plus `"type": "module"` in its package.json so we can write `import`. No key is needed, and Node 18+ already has `fetch`.
@@ -82,7 +93,7 @@ Our app has three parts that talk to each other. In Unit 2 terms, it is a **3-ti
 ## 3. The server files (`server/`)
 
 ### `server/package.json`
-The server's ID card: its name, its packages (`express`, `cors`), `"type": "module"`, and two commands: `npm start` (run) and `npm run dev` (run and restart when a file changes).
+The server's ID card: its name, its packages (`express`, `cors`, `firebase-admin`), `"type": "module"`, and two commands: `npm start` (run) and `npm run dev` (run and restart when a file changes).
 
 ### `server/psa.js`: talks to PSA
 - `CROPS`: our 10 crops, each with PSA's exact name and its PSA table. Example: our "Ampalaya" is PSA's "Ampalaya fruit [Bitter gourd]".
@@ -98,8 +109,35 @@ The server's ID card: its name, its packages (`express`, `cors`), `"type": "modu
 - **Endpoint 1, `GET /api/prices?search=tomato`:** the newest price of each crop. It checks the search text (more than 50 characters gives **400**), gets the prices, filters them, and sends `{ source, area, checkedAt, count, prices }`.
 - **Endpoint 2, `GET /api/prices/:crop`:** every month's price of one crop, newest first, for the Crop Details page. An unknown crop gives **404**.
 - If PSA fails, both endpoints answer **502** with a clear message instead of crashing.
-- Any other address gives **404** JSON. If a route crashes, the last middleware answers **500**.
+- `app.use(express.json())` lets the server read the JSON that React sends with POST and PATCH.
+- `app.use("/api/listings", listingsRouter)` plugs in the 5 listings endpoints from `listings.js`.
+- Any other address gives **404** JSON. If a route crashes, the last middleware answers **500**. If someone sends broken JSON, it answers **400** instead.
 - `app.listen(5000)` starts the server, or explains why it couldn't (for example, port 5000 is busy).
+
+### `server/firebaseAdmin.js`: connects the server to Firebase
+The server's version of `client/src/firebase.js`. It reads `serviceAccountKey.json`, connects with `initializeApp({ credential: cert(...) })`, and shares two tools: `adminAuth` (checks login tokens) and `adminDb` (reads and writes Firestore). If the key file is missing or broken, the server still starts and the prices still work. The listings endpoints then answer **503** with a message that says what's missing.
+
+### `server/auth.js`: who is asking? (middleware)
+A **middleware** is a function that runs **before** the route. It either lets the request go on with `next()`, or stops it and answers with an error. Unit 2 calls software between the client and the server "middleware", and Express uses the same word.
+- `requireLogin`: reads the token from the header `Authorization: Bearer <token>`. No token gives **401** "Please log in first." Then `adminAuth.verifyIdToken(token)` asks Firebase whether the token is real and not expired (a fake or old one gives **401**). Then it reads the person's `name` and `role` from `users` and saves them in `req.user` for the route.
+- `requireFarmer`: if `req.user.role` isn't `"farmer"`, it answers **403** "Only farmers can do this."
+
+### `server/listings.js`: our listings API
+Read each endpoint top to bottom: check who it is → check the data → use the database → answer with a status code and JSON.
+
+| Method and address | What it does | Who can use it | Possible answers |
+|---|---|---|---|
+| `GET /api/listings` | Every available listing, newest first (Marketplace) | Anyone logged in | 200, 401 |
+| `GET /api/listings/mine` | My own listings, available and sold (My Listings) | Farmers | 200, 401, 403 |
+| `POST /api/listings` | Post a new crop | Farmers | 201, 400, 401, 403 |
+| `PATCH /api/listings/:id` | Edit a listing, or mark it sold | The owner only | 200, 400, 401, 403, 404 |
+| `DELETE /api/listings/:id` | Remove a listing | The owner only | 200, 401, 403, 404 |
+
+- `FIELDS` and `pickFields`: only these 8 fields are copied from what React sends: crop, quantityKg, pricePerKg, town, harvestDate, contactNumber, notes and status. Anything else, like a fake `ownerId`, is ignored. Quantity and price become real numbers.
+- `findProblems`: the same checks as the form. The crop must be one of our 10, kilos between 0 and 100,000, price between ₱0 and ₱10,000, a town, a date like 2026-11-20 (or empty), a mobile number like 09171234567, notes up to 200 characters, and status "available" or "sold". It only checks the fields that were sent, so "Mark as sold" works on an older listing that has no contact number.
+- `toJson`: puts the document's ID and data together, and turns Firestore's time into text like `"2026-11-15T12:30:00.000Z"`, which JSON can carry.
+- **PATCH, not PUT:** PUT means "replace the whole listing", and PATCH means "change only what I send". Mark as sold sends only `{ "status": "sold" }`, so PATCH is the right method.
+- **The owner check:** PATCH and DELETE first read the listing. If it doesn't exist, **404**. If `ownerId` isn't the person in the token, **403**.
 
 ---
 
@@ -151,12 +189,13 @@ It also has one small helper, `formatPeso(1500)`, which gives `"1,500.00"`: two 
 | File | Talks to | Functions |
 |---|---|---|
 | `authService.js` | Firebase Auth + `users` collection | `register`, `login`, `logout`, `getProfile`, `friendlyAuthError` |
-| `listingsService.js` | `listings` collection | `getAvailableListings`, `getMyListings` (Read), `addListing` (Create), `updateListing`, `markSold` (Update), `deleteListing` (Delete), `friendlyListingError` |
+| `listingsService.js` | Our Express server | `getAvailableListings` → `GET /api/listings` and `getMyListings` → `GET /api/listings/mine` (Read), `addListing` → `POST` (Create), `updateListing` and `markSold` → `PATCH /api/listings/:id` (Update), `deleteListing` → `DELETE /api/listings/:id` (Delete), `friendlyListingError` |
 | `pricesService.js` | Our Express server | `getPrices(search)` → `GET /api/prices`, `getPriceHistory(crop)` → `GET /api/prices/:crop` |
 | `wikipediaService.js` | Wikipedia | `getCropInfo(cropName)` → `{ title, description, photo, link }` |
 
 Two details to point out:
-- **Friendly errors:** Firebase sends codes like `auth/invalid-credential`. `friendlyAuthError` turns them into "Wrong email or password." `friendlyListingError` turns `permission-denied` into "You can't change this listing."
+- **Friendly errors:** Firebase sends codes like `auth/invalid-credential`. `friendlyAuthError` turns them into "Wrong email or password." Our own server already answers in plain words (like "Only farmers can do this."), so `friendlyListingError` simply shows that message.
+- **The login token:** `listingsService.js` has one helper, `callServer`, that every listings function uses. It gets the token with `auth.currentUser.getIdToken()` and sends it as `Authorization: Bearer <token>`. Firebase renews the token by itself every hour. It also turns "server not running" and "no internet" into clear messages, the same way `pricesService.js` does.
 - **Wikipedia titles:** some crop names aren't Wikipedia page titles, so `WIKI_TITLES` says which page to use (Pechay → "Bok choy", Ampalaya → "Momordica charantia", Squash → "Calabaza", and so on). These are the same pages Agos uses.
 
 ### `src/layouts/MainLayout.js`
@@ -183,15 +222,16 @@ Every page also sets the name in the browser tab, like "Market Prices · AgosUgn
 - **`Register.js`**: name, email, password (6+ characters) and a Farmer/Buyer choice. `checkForm()` finds every problem at once and shows each one under its own field, the same way as the listing form, then puts the cursor in the first one. Calls `register()`, then `refreshUser()`.
 - **`MarketPrices.js`**: the newest PSA farmgate price of each crop, with search. Always shows the source ("PSA OpenSTAT"), the month of each price, and when our server last checked PSA, written as "Nov 5, 2026, 2:14 AM" so nobody mixes up the day and the month. `useCallback` keeps `loadPrices` the same between redraws, so `useEffect` runs only once.
 - **`CropDetails.js`**: uses two APIs at the same time. It finds the crop whatever the capital letters are, so `/crops/tomato` also works. The left card is Wikipedia (photo and description). The right card is our server (`GET /api/prices/Tomato`): the newest price and the last 12 months. Each card has its own loading and error, so if Wikipedia is down, the prices still show.
-- **`Marketplace.js`**: loads every available listing once, then searches, filters (town, min and max price) and sorts (newest, price low→high, high→low) in React with `.filter()` and `.sort()`. Shows "Showing 2 of 5 listings" and a Clear filters button. If the max price is lower than the min price, it says so under the Max field instead of just showing "no listings".
-- **`MyListings.js`**: the farmer's own listings with all of CRUD. **Post a crop** (Create), the list (Read), **Edit** and **Mark as sold** (Update), **Delete**. Delete asks "This can't be undone" first. Every action shows a success or error message, and the buttons are disabled while it saves.
+- **`Marketplace.js`**: loads every available listing once from our server (`GET /api/listings`), then searches, filters (town, min and max price) and sorts (newest, price low→high, high→low) in React with `.filter()` and `.sort()`. Shows "Showing 2 of 5 listings" and a Clear filters button. If the max price is lower than the min price, it says so under the Max field instead of just showing "no listings". The filters stay in React, not on the server, so the results change instantly while you type, with no waiting.
+- **`MyListings.js`**: the farmer's own listings with all of CRUD, each one a request to our server. **Post a crop** (Create, `POST`), the list (Read, `GET /mine`), **Edit** and **Mark as sold** (Update, `PATCH`), **Delete** (`DELETE`). Delete asks "This can't be undone" first. Every action shows a success or error message, and the buttons are disabled while it saves.
 
 ---
 
 ## 5. `firestore.rules`: the database's guard
 Anyone can open the browser tools and try to change data directly, so Firestore checks every request against these rules **on Google's servers**. That makes them part of our server-side logic.
-- `request.auth` is the person asking, `resource.data` is the listing now, and `request.resource.data` is what they want it to become.
-- Only logged-in people can read. Only farmers can post, only as themselves, with quantity and price above 0. Only the owner can edit or delete, and nobody can give a listing to someone else. People can only write their own profile.
+- `request.auth` is the person asking.
+- **`users`:** logged-in people can read profiles (to show names), and people can only write their own profile.
+- **`listings`: `allow read, write: if false`**, which means nobody, from any browser. Since Nov 15 only our server uses listings, and Firebase Admin skips the rules. Blocking everyone else means nobody can skip our server's checks by calling Firestore directly. The checks that used to be here (farmers only, your own listings only, numbers above 0) now live in `server/auth.js` and `server/listings.js`.
 
 ---
 
@@ -199,21 +239,22 @@ Anyone can open the browser tools and try to change data directly, so Firestore 
 
 | Method | Where |
 |---|---|
-| GET | `GET /api/prices`, `GET /api/prices/:crop` (React → our server), GET the PSA table codes (server → PSA), `GET /page/summary/...` (React → Wikipedia), `getDocs`/`getDoc` (Firestore) |
-| POST | Server → PSA (sends the query), Firebase login and register, `addDoc` (new listing) |
-| PATCH-style update | `updateDoc` (edit, mark sold) sends only the fields that change |
-| DELETE | `deleteDoc` (delete a listing) |
+| GET | `GET /api/prices`, `GET /api/prices/:crop`, `GET /api/listings`, `GET /api/listings/mine` (React → our server), GET the PSA table codes (server → PSA), `GET /page/summary/...` (React → Wikipedia), `getDoc` (profiles in Firestore) |
+| POST | `POST /api/listings` (new listing, React → our server), server → PSA (sends the query), Firebase login and register |
+| PATCH | `PATCH /api/listings/:id` (edit, mark sold): only the fields we send change |
+| DELETE | `DELETE /api/listings/:id` (delete a listing) |
 
 | Code | When our app sends or gets it |
 |---|---|
-| 200 OK | Prices loaded |
-| 400 Bad Request | Search text longer than 50 characters |
-| 403-style "permission denied" | A buyer tries to change a farmer's listing (Firestore rules) |
-| 404 Not Found | `/api/prices/Banana` (crop we don't track), or Wikipedia has no page |
+| 200 OK | Prices or listings loaded, a listing changed or deleted |
+| 201 Created | A new listing was saved |
+| 400 Bad Request | Search text longer than 50 characters, a listing with wrong data (like price 0), nothing to change, or broken JSON |
+| 401 Unauthorized | No login token, or a fake or expired one |
+| 403 Forbidden | A buyer tries to post, or someone tries to change or delete another farmer's listing |
+| 404 Not Found | `/api/prices/Banana` (crop we don't track), a listing that doesn't exist, or Wikipedia has no page |
 | 500 Server Error | Something crashed inside our server |
 | 502 Bad Gateway | PSA didn't answer our server |
-
-The Week 4 upgrade (listings through our own Express API with POST, PUT and DELETE) is in the study guide and isn't built yet.
+| 503 Service Unavailable | Our server has no Firebase key yet, so the listings are off |
 
 ---
 
@@ -233,6 +274,11 @@ The code follows the study guide. These are the places where it differs:
 7. **`NavLink`** instead of `Link` in the Navbar, so the open page is highlighted.
 8. **The edit form has a Status field**, so "Mark as sold" can be undone.
 9. **Wikipedia titles:** 6 crops are mapped (the guide had 3), the same as Agos.
+10. **Week 4 upgrade: PATCH instead of PUT.** The guide used PUT but sent only the changed fields. That is what PATCH means, so the code uses PATCH.
+11. **Week 4 upgrade: Marketplace filters stay in React.** The guide filtered on the server (`?town=Leon&maxPrice=60`). Filtering in React keeps the results instant while you type, and the server still does the checking and saving.
+12. **Week 4 upgrade: more checks on the server.** The server checks the same things as the form, including the crop list, the contact number and the 200-character notes. It only checks the fields that were sent, so "Mark as sold" works on older listings.
+13. **Week 4 upgrade: no crash without the key.** If `serviceAccountKey.json` is missing, the prices still work and the listings say what's missing (**503**).
+14. **Week 4 upgrade: newer Firebase Admin imports,** `import { initializeApp, cert } from "firebase-admin/app"`, which look like the ones in `client/src/firebase.js`.
 
 ---
 
@@ -271,17 +317,47 @@ The heuristic check's biggest problem (number 1) was that **a buyer had no way t
 
 ---
 
-## 10. What was tested, and what wasn't
-Tested on a computer without the real services, using stand-ins:
-- **Server:** with a fake PSA that answers in PSA's real format. All endpoints, the search check (400), unknown crop (404), PSA down (502), the 1-hour cache (4 requests, PSA called only once per table) and the busy-port message.
-- **The whole app in a browser,** with Firebase's official local test tools (emulators): register, login, wrong password, every page, search, filters, sort, all CRUD actions, buyer vs farmer access, error screens, and phone size (no sideways scrolling).
-- **Security rules:** 13 checks, for example "a buyer can't delete a farmer's listing" and "a farmer can't post 0 kg".
+## 10. Listings through our own Express API (Nov 15)
+This is the "Week 4 upgrade" from the study guide, which Juan approved on Nov 3 and started on Nov 15. Before, React wrote listings straight into Firestore, and the security rules did the checking. Now every listing request goes to **our Express server**, which checks who is asking and checks the data, and only then uses Firestore.
 
-**Tested on Juan's laptop with the real services (Nov 3 and 4):** the real PSA (all 10 crops), a real Firebase project (register, log in, post, edit, mark as sold), and Crop Details with Wikipedia. Our test computer can't reach PSA or Wikipedia, so those were only checked on Juan's laptop. If prices ever stop loading, open http://localhost:5000/api/prices first to see whether PSA is answering.
+**Why:** our server now does real work for listings, not only prices. It has its own endpoints with all four methods (GET, POST, PATCH, DELETE), checks the login token, checks the data, and answers with proper status codes. That is what the rubric means by server-side logic and a custom API.
+
+**What changed:**
+
+| File | Change |
+|---|---|
+| `server/firebaseAdmin.js` | New. Connects the server to Firebase with the secret key. |
+| `server/auth.js` | New. The `requireLogin` and `requireFarmer` middleware. |
+| `server/listings.js` | New. The 5 listings endpoints and their checks. |
+| `server/index.js` | Reads JSON (`express.json()`), plugs in the listings routes, answers 400 for broken JSON. |
+| `server/package.json` | Adds `firebase-admin`. |
+| `client/src/services/listingsService.js` | Rewritten: sends requests to our server with the login token, instead of using Firestore. The function names are the same. |
+| `client/src/pages/Marketplace.js`, `MyListings.js` | Small changes: the time now arrives as text (`Date.parse`), and errors show the server's message. |
+| `firestore.rules` | `listings` is locked (`if false`), so only our server can use it. |
+| `README.md` | New setup step 4 (the server's key) and new troubleshooting rows. |
+
+**What Juan does once on his laptop:** run `npm install` in `server`, download the key (README step 4), restart the server, check that everything works, and then paste the new `firestore.rules` into the Firebase Console and click Publish. Publish the rules **last**: the old code reads listings directly, so it stops working once the rules are locked.
+
+**Existing listings keep working.** The data in Firestore didn't change shape. The server sends `createdAt` as text, and the pages read it with `Date.parse`.
+
+**To undo just this change with Git:** `git revert` the commit named "Listings through our own Express API". The version before it is saved with the tag `v3-before-express-listings`. If you already published the locked rules, paste the old rules back too (they're in that tag's `firestore.rules`).
 
 ---
 
-## 11. Undoing a change
+## 11. What was tested, and what wasn't
+Tested on a computer without the real services, using stand-ins:
+- **Server:** with a fake PSA that answers in PSA's real format. All endpoints, the search check (400), unknown crop (404), PSA down (502), the 1-hour cache (4 requests, PSA called only once per table) and the busy-port message.
+- **The listings API (Nov 15), 36 checks** with the real server and Firebase's emulators: no token and a fake token (401), a buyer posting or opening `/mine` (403), every wrong field (400 with the problems), broken JSON (400), a fake `ownerId` being ignored, new listings starting as available, another farmer's PATCH and DELETE (403), unknown listings (404), Mark as sold on an older listing without a number, sold listings leaving the Marketplace, the locked rules blocking the browser, and the prices still working. Without the key file, the listings answer 503 and the prices still work.
+- **The whole app in a browser,** with Firebase's official local test tools (emulators): register, login, wrong password, every page, search, filters, sort, all CRUD actions, buyer vs farmer access, error screens, and phone size (no sideways scrolling). After the Nov 15 change, all 59 earlier browser checks still pass, plus 12 new ones: the pages send GET, POST, PATCH and DELETE to `/api/listings` with the token, the browser no longer reads Firestore listings, and clear messages show when the server is stopped or has no key.
+- **Security rules:** 13 checks before Nov 15, for example "a buyer can't delete a farmer's listing". Since Nov 15 the listings rules are locked, and the tests check that the browser can't read or write listings directly.
+
+**Tested on Juan's laptop with the real services (Nov 3 and 4):** the real PSA (all 10 crops), a real Firebase project (register, log in, post, edit, mark as sold), and Crop Details with Wikipedia. Our test computer can't reach PSA or Wikipedia, so those were only checked on Juan's laptop. If prices ever stop loading, open http://localhost:5000/api/prices first to see whether PSA is answering.
+
+**Not tested yet:** the Nov 15 listings change with the **real** Firebase project and a real key. That needs Juan's laptop (README step 4).
+
+---
+
+## 12. Undoing a change
 The project uses Git, with one commit per part:
 ```
 git log --oneline          # see the saved steps

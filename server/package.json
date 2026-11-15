@@ -1,7 +1,7 @@
 {
   "name": "agos-web-server",
   "version": "1.0.0",
-  "description": "Express server for AgosUgnayan Web: gets Iloilo farmgate prices from PSA OpenSTAT",
+  "description": "Express server for AgosUgnayan Web: Iloilo farmgate prices from PSA OpenSTAT, and the listings API",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -10,7 +10,8 @@
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.6",
-    "express": "^5.3.0"
+    "express": "^5.3.0",
+    "firebase-admin": "^13.10.0"
   },
   "type": "module"
 }

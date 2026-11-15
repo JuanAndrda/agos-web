@@ -1,7 +1,6 @@
 // MyListings.js: a farmer's own listings, with all four CRUD actions:
 // Create (Post a crop), Read (the list), Update (Edit, or Mark as sold) and Delete.
 import { useCallback, useEffect, useState } from "react";
-import { useAuth } from "../context/AuthContext";
 import {
   getMyListings,
   addListing,
@@ -15,9 +14,10 @@ import ListingForm from "../components/ListingForm";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
 
-// Available listings first, then the newest first
+// Available listings first, then the newest first.
+// The server sends the time as text like "2026-11-15T12:30:00.000Z", and Date.parse makes it a number.
 function sortListings(list) {
-  const time = (l) => (l.createdAt ? l.createdAt.toMillis() : Date.now());
+  const time = (l) => (l.createdAt ? Date.parse(l.createdAt) : Date.now());
   return [...list].sort((a, b) => {
     if (a.status !== b.status) return a.status === "available" ? -1 : 1;
     return time(b) - time(a);
@@ -25,7 +25,6 @@ function sortListings(list) {
 }
 
 function MyListings() {
-  const { user } = useAuth();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -43,14 +42,14 @@ function MyListings() {
     setLoading(true);
     setError("");
     try {
-      setListings(sortListings(await getMyListings(user.uid))); // READ
+      setListings(sortListings(await getMyListings())); // READ: GET /api/listings/mine
     } catch (err) {
       console.error(err);
-      setError("We couldn't load your listings. Check your connection and try again.");
+      setError(friendlyListingError(err));
     } finally {
       setLoading(false);
     }
-  }, [user.uid]);
+  }, []);
 
   useEffect(() => {
     loadListings();
@@ -66,10 +65,10 @@ function MyListings() {
   async function handleSave(form) {
     try {
       if (formMode === "add") {
-        await addListing(form, user); // CREATE
+        await addListing(form); // CREATE: POST /api/listings
         setMessage(`Your ${form.crop} listing is posted. Buyers can see it in the Marketplace now.`);
       } else {
-        await updateListing(formMode.id, form); // UPDATE
+        await updateListing(formMode.id, form); // UPDATE: PATCH /api/listings/:id
         setMessage(`Your ${form.crop} listing is updated.`);
       }
     } catch (err) {
@@ -98,13 +97,13 @@ function MyListings() {
   }
 
   function handleMarkSold(listing) {
-    runAction(listing, markSold, `Your ${listing.crop} listing is marked as sold. You can change it back with Edit.`); // UPDATE
+    runAction(listing, markSold, `Your ${listing.crop} listing is marked as sold. You can change it back with Edit.`); // UPDATE: PATCH
   }
 
   function handleDelete(listing) {
     // Ask first, because deleting can't be undone
     const ok = window.confirm(`Delete your ${listing.crop} listing? This can't be undone.`);
-    if (ok) runAction(listing, deleteListing, `Your ${listing.crop} listing is deleted.`); // DELETE
+    if (ok) runAction(listing, deleteListing, `Your ${listing.crop} listing is deleted.`); // DELETE: DELETE /api/listings/:id
   }
 
   return (

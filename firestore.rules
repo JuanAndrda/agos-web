@@ -12,23 +12,12 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // listings: since Nov 15, only our Express server reads and writes listings.
+    // The server uses Firebase Admin, which skips these rules, and it does its own checks
+    // (server/auth.js and server/listings.js). Blocking everyone else here means nobody can
+    // skip our server's checks by calling Firestore directly from the browser.
     match /listings/{listingId} {
-      // Anyone logged in can see listings
-      allow read: if request.auth != null;
-
-      // Only farmers can post, only as themselves, and with real numbers
-      allow create: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "farmer"
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.quantityKg > 0
-        && request.resource.data.pricePerKg > 0;
-
-      // Only the owner can edit or delete, and cannot give it to someone else
-      allow update: if request.auth != null
-        && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == request.auth.uid;
-      allow delete: if request.auth != null
-        && resource.data.ownerId == request.auth.uid;
+      allow read, write: if false;
     }
   }
 }
