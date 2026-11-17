@@ -77,8 +77,11 @@ function Marketplace() {
 
   return (
     <section>
-      <h1>Marketplace</h1>
-      <p className="muted">Crops that Iloilo farmers are selling now.</p>
+      {/* page-banner-tall leaves room at the bottom, so the filter box can overlap it */}
+      <div className="page-banner page-banner-tall">
+        <h1>Marketplace</h1>
+        <p>Crops that Iloilo farmers are selling now.</p>
+      </div>
 
       <div className="filters card">
         <SearchBar label="Search a crop" value={search} onChange={setSearch} placeholder="e.g. eggplant" />

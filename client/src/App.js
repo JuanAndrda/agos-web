@@ -5,6 +5,7 @@ import { firebaseReady } from "./firebase";
 import { AuthProvider } from "./context/AuthContext";
 import MainLayout from "./layouts/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import MarketPrices from "./pages/MarketPrices";
@@ -33,13 +34,14 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/" element={<Navigate to="/prices" replace />} />
+            {/* The landing page: anyone can see it, so it has no ProtectedRoute */}
+            <Route path="/" element={<Home />} />
             <Route path="/prices" element={<ProtectedRoute><MarketPrices /></ProtectedRoute>} />
             <Route path="/crops/:cropName" element={<ProtectedRoute><CropDetails /></ProtectedRoute>} />
             <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
             <Route path="/my-listings" element={<ProtectedRoute role="farmer"><MyListings /></ProtectedRoute>} />
-            {/* Any other URL goes back to the prices */}
-            <Route path="*" element={<Navigate to="/prices" replace />} />
+            {/* Any other URL goes back to the landing page */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </MainLayout>
       </BrowserRouter>

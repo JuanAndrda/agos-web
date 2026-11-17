@@ -108,13 +108,13 @@ function MyListings() {
 
   return (
     <section>
-      <div className="page-head">
+      <div className="page-banner page-head">
         <div>
           <h1>My Listings</h1>
-          <p className="muted">The crops you are selling. Only you can change them.</p>
+          <p>The crops you are selling. Only you can change them.</p>
         </div>
         {formMode === null && (
-          <button type="button" className="btn btn-primary" onClick={() => openForm("add")}>
+          <button type="button" className="btn btn-light" onClick={() => openForm("add")}>
             + Post a crop
           </button>
         )}

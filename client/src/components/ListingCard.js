@@ -29,6 +29,7 @@ function ListingCard({ listing, children, showFarmer = true }) {
 
   return (
     <article className={sold ? "card listing-card sold" : "card listing-card"}>
+      {/* The colored top of the card, like a product photo area on a shopping site */}
       <div className="listing-top">
         <h3>
           <Link to={`/crops/${listing.crop}`}>{listing.crop}</Link>
@@ -39,48 +40,48 @@ function ListingCard({ listing, children, showFarmer = true }) {
         </span>
       </div>
 
-      <p className="listing-price">
-        ₱{formatPeso(listing.pricePerKg)} <span>per kg</span>
-      </p>
+      <div className="listing-body">
+        <p className="listing-price">
+          ₱{formatPeso(listing.pricePerKg)} <span>per kg</span>
+        </p>
 
-      <dl className="listing-facts">
-        <div>
-          <dt>Quantity</dt>
-          <dd>{Number(listing.quantityKg).toLocaleString("en-PH")} kg</dd>
-        </div>
-        <div>
-          <dt>Town</dt>
-          <dd>{listing.town}</dd>
-        </div>
-        {listing.harvestDate && (
+        <dl className="listing-facts">
           <div>
-            <dt>Harvest</dt>
-            <dd>{formatDate(listing.harvestDate)}</dd>
+            <dt>Quantity</dt>
+            <dd>{Number(listing.quantityKg).toLocaleString("en-PH")} kg</dd>
           </div>
-        )}
+          <div>
+            <dt>Town</dt>
+            <dd>{listing.town}</dd>
+          </div>
+          {listing.harvestDate && (
+            <div>
+              <dt>Harvest</dt>
+              <dd>{formatDate(listing.harvestDate)}</dd>
+            </div>
+          )}
+        </dl>
+
+        {listing.notes && <p className="listing-notes">{listing.notes}</p>}
+
+        {/* The seller row at the bottom: who sells it and how to reach them */}
         {showFarmer && (
-          <div>
-            <dt>Farmer</dt>
-            <dd>{listing.ownerName}</dd>
-          </div>
-        )}
-        {/* Older listings were posted before we added the number, so we check that there is one */}
-        {showFarmer && listing.contactNumber && (
-          <div>
-            <dt>Contact</dt>
-            <dd>
-              {/* "tel:" opens the phone app on a phone, so the buyer can call or text in one tap */}
+          <div className="listing-seller">
+            <span className="seller-name" title={listing.ownerName}>
+              Sold by <strong>{listing.ownerName}</strong>
+            </span>
+            {/* Older listings were posted before we added the number, so we check that there is one */}
+            {listing.contactNumber && (
+              // "tel:" opens the phone app on a phone, so the buyer can call or text in one tap
               <a href={`tel:${listing.contactNumber}`} className="contact-link">
                 {formatPhone(listing.contactNumber)}
               </a>
-            </dd>
+            )}
           </div>
         )}
-      </dl>
 
-      {listing.notes && <p className="listing-notes">{listing.notes}</p>}
-
-      {children && <div className="listing-actions">{children}</div>}
+        {children && <div className="listing-actions">{children}</div>}
+      </div>
     </article>
   );
 }

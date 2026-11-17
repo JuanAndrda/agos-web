@@ -1,0 +1,15 @@
+<!-- basket.svg: the drawing on the Home page (a basket of Iloilo vegetables). A plain picture file, so React just shows it with <img>. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="100" fill="#1f6b3a"/>
+  <circle cx="100" cy="100" r="84" fill="#25794a"/>
+  <path d="M58 120c-6-18 0-34 14-40" stroke="#3d9a4a" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <circle cx="78" cy="104" r="24" fill="#e2483d"/>
+  <path d="M70 82l8 6 8-6-8 2z" fill="#2f7d3a"/>
+  <ellipse cx="126" cy="96" rx="16" ry="34" transform="rotate(25 126 96)" fill="#5b2a7a"/>
+  <path d="M136 64l8-8 4 10z" fill="#3d9a4a"/>
+  <circle cx="104" cy="112" r="18" fill="#b5446e"/>
+  <path d="M104 94v-14" stroke="#6aa84f" stroke-width="4"/>
+  <path d="M146 120c4-14 2-24-6-30" stroke="#e8a33d" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <path d="M40 120h120l-12 52a10 10 0 0 1-10 8H62a10 10 0 0 1-10-8z" fill="#c98a45"/>
+  <path d="M48 140h104M52 158h96" stroke="#a86d30" stroke-width="4"/>
+</svg>

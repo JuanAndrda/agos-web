@@ -83,7 +83,10 @@ function CropDetails() {
       <Link to="/prices" className="back-link">
         ← Back to Market Prices
       </Link>
-      <h1>{cropName}</h1>
+      <div className="page-banner">
+        <h1>{cropName}</h1>
+        <p>Photo and description from Wikipedia, farmgate prices from PSA.</p>
+      </div>
 
       <div className="details-grid">
         {/* About the crop, from Wikipedia */}

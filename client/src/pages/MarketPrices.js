@@ -49,18 +49,21 @@ function MarketPrices() {
 
   return (
     <section>
-      <h1>Market Prices</h1>
-      <p className="source-line">
-        Farmgate prices in Iloilo Province · Source: <strong>PSA OpenSTAT</strong>
-      </p>
-      <p className="muted small">
-        PSA updates these prices once a month, a few months late. They are a guide, not today's price.
-        {checkedAt &&
-          ` Last checked from PSA: ${new Date(checkedAt).toLocaleString("en-PH", {
-            dateStyle: "medium", // "Nov 5, 2026", so nobody mixes up the day and the month
-            timeStyle: "short", // "2:14 AM"
-          })}.`}
-      </p>
+      {/* page-banner: the green box at the top of each page (App.css) */}
+      <div className="page-banner">
+        <h1>Market Prices</h1>
+        <p className="source-line">
+          Farmgate prices in Iloilo Province · Source: <strong>PSA OpenSTAT</strong>
+        </p>
+        <p className="small">
+          PSA updates these prices once a month, a few months late. They are a guide, not today's price.
+          {checkedAt &&
+            ` Last checked from PSA: ${new Date(checkedAt).toLocaleString("en-PH", {
+              dateStyle: "medium", // "Nov 5, 2026", so nobody mixes up the day and the month
+              timeStyle: "short", // "2:14 AM"
+            })}.`}
+        </p>
+      </div>
 
       <SearchBar
         label="Search a crop"
@@ -108,7 +111,13 @@ function MarketPrices() {
                 {prices.map((p) => (
                   <tr key={p.crop}>
                     <td>
-                      <Link to={`/crops/${p.crop}`}>{p.crop}</Link>
+                      <Link to={`/crops/${p.crop}`} className="crop-link">
+                        {/* The first letter in a small green square, just for looks */}
+                        <span className="crop-letter" aria-hidden="true">
+                          {p.crop[0]}
+                        </span>
+                        {p.crop}
+                      </Link>
                     </td>
                     <td>{p.month}</td>
                     <td className="num price">₱{formatPeso(p.pricePerKg)}</td>
