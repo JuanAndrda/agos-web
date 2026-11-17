@@ -13,6 +13,8 @@ It uses four services:
 
 Read **[EXPLAINED.md](EXPLAINED.md)** for a plain-English explanation of every file.
 
+**New to the project?** Follow **[HOW-TO-RUN.md](HOW-TO-RUN.md)** to run it on your laptop in a few steps.
+
 ## What you need
 
 - Node.js 18 or newer (check with `node -v`)
