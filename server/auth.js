@@ -34,3 +34,11 @@ export function requireFarmer(req, res, next) {
   }
   next();
 }
+
+// Is this person a buyer? (Use it after requireLogin.) Only buyers can place orders.
+export function requireBuyer(req, res, next) {
+  if (req.user.role !== "buyer") {
+    return res.status(403).json({ error: "Only buyers can place orders." });
+  }
+  next();
+}

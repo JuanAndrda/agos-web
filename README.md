@@ -8,7 +8,7 @@ It uses four services:
 |---|---|---|
 | **Firebase Authentication** | Log in and register (Farmer or Buyer) | Directly, with the `firebase` library |
 | **Firestore** | Our database: `users` and `listings` | `users`: directly, with the `firebase` library. `listings`: only through our Express server |
-| **Our Express server** (`server/`) | 1. Gets Iloilo prices from **PSA OpenSTAT**, cleans them, keeps them for 1 hour. 2. Our listings API: checks who is asking and checks the data, then reads or writes Firestore | `fetch("/api/prices")` and `fetch("/api/listings")` |
+| **Our Express server** (`server/`) | 1. Gets Iloilo prices from **PSA OpenSTAT**, cleans them, keeps them for 1 hour. 2. Our listings API and 3. our orders API: checks who is asking and checks the data, then reads or writes Firestore | `fetch("/api/prices")`, `fetch("/api/listings")` and `fetch("/api/orders")` |
 | **Wikipedia API** | Crop photo and short description | `fetch(...)` straight from the browser |
 
 Read **[EXPLAINED.md](EXPLAINED.md)** for a plain-English explanation of every file.
@@ -102,6 +102,7 @@ agos-web/
 │   ├── firebaseAdmin.js ← connects the server to Firebase with its secret key
 │   ├── auth.js          ← middleware: is this person logged in? are they a farmer?
 │   ├── listings.js      ← the listings API: GET, POST, PATCH and DELETE /api/listings
+│   ├── orders.js        ← the orders API: POST, GET and PATCH /api/orders (cart checkout)
 │   └── serviceAccountKey.json  ← the secret key (you add it; never on GitHub)
 ├── client/              ← our React app (Create React App)
 │   ├── .env.example     ← the names of the Firebase keys (copy to .env)
@@ -110,7 +111,7 @@ agos-web/
 │       ├── index.js, App.js, App.css
 │       ├── firebase.js       ← connects to Firebase
 │       ├── constants.js      ← the crop and town lists
-│       ├── context/          ← who is logged in
+│       ├── context/          ← who is logged in, and the cart
 │       ├── services/         ← EVERY API call lives here
 │       ├── layouts/          ← Navbar + page + Footer
 │       ├── components/       ← reusable pieces

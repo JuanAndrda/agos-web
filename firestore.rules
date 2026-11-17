@@ -19,5 +19,11 @@ service cloud.firestore {
     match /listings/{listingId} {
       allow read, write: if false;
     }
+
+    // orders (Nov 17): the same as listings. Only our server (server/orders.js) reads and
+    // writes them, so nobody can change an order's status or skip the stock check.
+    match /orders/{orderId} {
+      allow read, write: if false;
+    }
   }
 }

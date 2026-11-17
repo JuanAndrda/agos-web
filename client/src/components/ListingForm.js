@@ -1,7 +1,8 @@
 // ListingForm.js: the form to post a new crop or edit one. It checks every field
 // before saving and explains what to fix. My Listings decides what "save" does.
 import { useEffect, useRef, useState } from "react";
-import { CROPS, TOWNS } from "../constants";
+import { CROPS, TOWNS, formatPeso } from "../constants";
+import { getPrices } from "../services/pricesService";
 
 const EMPTY_FORM = {
   crop: "",
@@ -55,6 +56,21 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const formRef = useRef(null);
+  // PSA's newest farmgate price of each crop, like { Tomato: { pricePerKg: 48.2, month: "June 2026" } }.
+  // null means "not loaded (yet)". The form still works without it.
+  const [psaPrices, setPsaPrices] = useState(null);
+
+  // Load PSA's prices once when the form opens: GET /api/prices (our Express server asks PSA).
+  // If PSA is down we just don't show a suggestion, because the farmer can still type a price.
+  useEffect(() => {
+    getPrices()
+      .then((data) => {
+        const byCrop = {};
+        for (const p of data.prices) byCrop[p.crop] = p;
+        setPsaPrices(byCrop);
+      })
+      .catch((err) => console.error("No PSA suggestion:", err));
+  }, []);
 
   // When the form opens, scroll to it so the farmer sees it (the Edit button may be far below)
   useEffect(() => {
@@ -73,6 +89,14 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
     const { name, value } = event.target;
     setForm({ ...form, [name]: value });
   }
+
+  // "Use this price" copies PSA's price into the price box. The farmer can still change it.
+  function applySuggestedPrice() {
+    setForm({ ...form, pricePerKg: String(suggestion.pricePerKg) });
+  }
+
+  // The PSA price of the crop the farmer chose (or undefined if no crop or no prices yet)
+  const suggestion = psaPrices && psaPrices[form.crop];
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -191,11 +215,23 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
             aria-invalid={Boolean(errors.pricePerKg)}
             aria-describedby={errors.pricePerKg ? "pricePerKg-error" : "pricePerKg-help"}
           />
-          {fieldError("pricePerKg") || (
-            <p id="pricePerKg-help" className="help">
-              Tip: check Market Prices to see PSA's farmgate price.
-            </p>
-          )}
+          {fieldError("pricePerKg") ||
+            (suggestion ? (
+              // The suggested price box: PSA's farmgate price for this crop, and a button to use it
+              <div id="pricePerKg-help" className="price-suggestion">
+                <p>
+                  PSA farmgate price for {form.crop}: <strong>₱{formatPeso(suggestion.pricePerKg)}/kg</strong>{" "}
+                  <span className="muted">({suggestion.month})</span>
+                </p>
+                <button type="button" className="btn btn-secondary btn-small" onClick={applySuggestedPrice}>
+                  Use this price
+                </button>
+              </div>
+            ) : (
+              <p id="pricePerKg-help" className="help">
+                {form.crop ? "PSA's price for this crop isn't available right now." : "Choose a crop to see PSA's farmgate price."}
+              </p>
+            ))}
         </div>
 
         <div className="field">

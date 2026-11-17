@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import { firebaseReady } from "./firebase";
 import { AuthProvider } from "./context/AuthContext";
+import { CartProvider } from "./context/CartContext";
 import MainLayout from "./layouts/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
@@ -12,6 +13,8 @@ import MarketPrices from "./pages/MarketPrices";
 import CropDetails from "./pages/CropDetails";
 import Marketplace from "./pages/Marketplace";
 import MyListings from "./pages/MyListings";
+import Cart from "./pages/Cart";
+import Orders from "./pages/Orders";
 
 function App() {
   // No Firebase keys in client/.env yet: explain how to fix it instead of showing a blank page
@@ -29,6 +32,8 @@ function App() {
 
   return (
     <AuthProvider>
+      {/* CartProvider sits inside AuthProvider, because the cart empties when the user changes */}
+      <CartProvider>
       <BrowserRouter>
         <MainLayout>
           <Routes>
@@ -40,11 +45,14 @@ function App() {
             <Route path="/crops/:cropName" element={<ProtectedRoute><CropDetails /></ProtectedRoute>} />
             <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
             <Route path="/my-listings" element={<ProtectedRoute role="farmer"><MyListings /></ProtectedRoute>} />
+            <Route path="/cart" element={<ProtectedRoute role="buyer"><Cart /></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
             {/* Any other URL goes back to the landing page */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </MainLayout>
       </BrowserRouter>
+      </CartProvider>
     </AuthProvider>
   );
 }

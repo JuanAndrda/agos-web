@@ -26,6 +26,8 @@ function formatPhone(number) {
 
 function ListingCard({ listing, children, showFarmer = true }) {
   const sold = listing.status === "sold";
+  // Sold out = every kilo was ordered (the server marks it sold when the stock reaches 0 kg)
+  const soldOut = sold && listing.quantityKg === 0;
 
   return (
     <article className={sold ? "card listing-card sold" : "card listing-card"}>
@@ -36,7 +38,7 @@ function ListingCard({ listing, children, showFarmer = true }) {
         </h3>
         {/* The status is written in words, not shown by color alone */}
         <span className={sold ? "status status-sold" : "status status-available"}>
-          {sold ? "Sold" : "Available"}
+          {soldOut ? "Sold out" : sold ? "Sold" : "Available"}
         </span>
       </div>
 

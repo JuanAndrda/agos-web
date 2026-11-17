@@ -1,13 +1,15 @@
-// index.js: our Express server. It has two jobs:
+// index.js: our Express server. It has three jobs:
 // 1. Prices: React asks this server, this server asks PSA, cleans the answer, remembers it
 //    for one hour, and sends back only what the page needs.
 // 2. Listings: React sends every listing request here, and listings.js checks it and
 //    talks to Firestore.
+// 3. Orders: the cart's checkout and the order requests (orders.js).
 
 import express from "express";
 import cors from "cors";
 import { fetchPsaPrices, CROPS } from "./psa.js";
 import listingsRouter from "./listings.js";
+import ordersRouter from "./orders.js";
 
 const app = express();
 app.use(cors()); // lets our React app (a different port) call this server
@@ -100,6 +102,9 @@ app.get("/api/prices/:crop", async (req, res) => {
 
 // ---- Endpoints 3 to 7: our listings API, GET, POST, PATCH and DELETE (see listings.js) ----
 app.use("/api/listings", listingsRouter);
+
+// ---- Endpoints 8 to 11: our orders API, POST, GET and PATCH (see orders.js) ----
+app.use("/api/orders", ordersRouter);
 
 // Any other address: answer with a clear 404 instead of an HTML page
 app.use((req, res) => {
