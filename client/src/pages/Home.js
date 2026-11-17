@@ -1,12 +1,12 @@
 // Home.js: the landing page at "/", the first page a visitor sees. Anyone can open it, even
 // before logging in. It uses two APIs we already have:
 //   1. our server's GET /api/prices (PSA prices), which doesn't need a login
-//   2. Wikipedia, for a photo of each crop (the same getCropInfo() as Crop Details)
+//   2. Wikipedia, for a photo of each crop (getCropPhotos, shared with Market Prices)
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getPrices } from "../services/pricesService";
-import { getCropInfo } from "../services/wikipediaService";
+import { getCropPhotos } from "../services/wikipediaService";
 import { TOWNS, formatPeso } from "../constants";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
@@ -17,18 +17,6 @@ const STEPS = [
   { title: "Find a crop near you", text: "Search the Marketplace by crop, town and price." },
   { title: "Call the farmer", text: "Tap the number on a listing to call or text the farmer." },
 ];
-
-// Asks Wikipedia for every crop's photo at the same time, and returns them like
-// { Tomato: "https://upload.wikimedia.org/...", ... }. If one photo fails, that tile just
-// shows a letter instead, so the rest of the page still works.
-async function getPhotos(crops) {
-  const results = await Promise.all(crops.map((crop) => getCropInfo(crop).catch(() => null)));
-  const photos = {};
-  crops.forEach((crop, i) => {
-    if (results[i]?.photo) photos[crop] = results[i].photo;
-  });
-  return photos;
-}
 
 function Home() {
   const { user } = useAuth();
@@ -50,7 +38,7 @@ function Home() {
       const data = await getPrices(""); // GET /api/prices -> the newest price of each crop
       setPrices(data.prices);
       setLoading(false);
-      setPhotos(await getPhotos(data.prices.map((p) => p.crop))); // Wikipedia, one call per crop
+      setPhotos(await getCropPhotos(data.prices.map((p) => p.crop))); // Wikipedia, one call per crop
     } catch (err) {
       setError(err.message);
     } finally {

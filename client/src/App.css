@@ -811,32 +811,136 @@ select[aria-invalid="true"] {
   font-weight: 700;
   color: var(--leaf-dark);
 }
-/* The crop names in the table: a bigger area to tap, without changing how they look */
-.price-table td a {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  margin: -6px 0;
+/* ---------- Market Prices (summary boxes and price cards) ---------- */
+/* The search box sits inside the green banner, so its label is white */
+.page-banner .search-bar {
+  margin: 16px 0 0;
+}
+.page-banner .search-bar label {
+  color: #fff;
+}
+.page-banner .search-bar input {
+  border-color: transparent;
+}
+.page-banner .btn-primary {
+  background: var(--harvest);
+  color: var(--leaf-dark);
+}
+.page-banner .btn-primary:hover:not(:disabled) {
+  background: #f0b75e;
+}
+/* 3 boxes in a row: lowest price, highest price, how many crops */
+.price-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+.summary-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
   color: var(--text);
-  font-weight: 600;
   text-decoration: none;
 }
-.price-table td a:hover {
-  color: var(--leaf);
-  text-decoration: underline;
+a.summary-box:hover {
+  border-color: var(--leaf);
 }
-/* The small green square with the crop's first letter */
-.crop-letter {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+.summary-box span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.summary-box strong {
+  font-family: var(--display);
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--leaf-dark);
+  font-variant-numeric: tabular-nums;
+}
+.summary-box small {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+/* The crop cards: as many in a row as fit (5 on a laptop, 2 on a phone) */
+.price-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 16px;
+  margin: 16px 0 12px;
+}
+.price-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden; /* the photo stays inside the round corners */
+  color: var(--text);
+  text-decoration: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.price-card:hover {
+  transform: translateY(-3px); /* the card lifts up a little when you point at it */
+  box-shadow: var(--shadow);
+}
+.price-card img,
+.price-card-letter {
+  width: 100%;
+  aspect-ratio: 4 / 3; /* every photo gets the same shape */
+  object-fit: cover; /* fill the shape without stretching the photo */
+  background: var(--leaf-soft);
+}
+.price-card-letter {
   display: grid;
   place-items: center;
-  background: var(--leaf-soft);
-  color: var(--leaf-dark);
   font-family: var(--display);
+  font-size: 2.5rem;
   font-weight: 800;
+  color: var(--leaf-dark);
+}
+.price-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 14px;
+  flex: 1;
+}
+.price-card-name {
+  font-family: var(--display);
+  font-size: 1.1rem;
+}
+.price-card-price {
+  font-family: var(--display);
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--leaf-dark);
+  font-variant-numeric: tabular-nums;
+}
+.price-card-price small {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.price-card-month {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.price-card-more {
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--leaf);
+}
+.price-card:hover .price-card-more {
+  text-decoration: underline;
 }
 
 /* ---------- Crop Details ---------- */
@@ -1165,5 +1269,32 @@ select[aria-invalid="true"] {
   /* No room for both buttons: "Create account" hides, and the Home page and Log in page still link to it */
   .nav-signup {
     display: none !important;
+  }
+  /* The 3 summary boxes stay in one short row on a phone */
+  .price-summary {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .summary-box {
+    padding: 10px;
+  }
+  .summary-box span {
+    font-size: 0.68rem;
+  }
+  .summary-box strong {
+    font-size: 1.1rem;
+  }
+  .summary-box small {
+    font-size: 0.75rem;
+  }
+  .price-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .price-card-price {
+    font-size: 1.2rem;
+  }
+  .price-card-more {
+    display: none; /* the whole card is the link, so we save room on a phone */
   }
 }
