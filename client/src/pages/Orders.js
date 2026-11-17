@@ -1,5 +1,6 @@
-// Orders.js: the order requests. Everyone sees "My orders" (what I asked to buy, with Cancel).
-// Farmers also see "Orders received" (requests for their crops, with Accept and Decline).
+// Orders.js: the order requests. What you see depends on your role:
+// - a buyer sees "My orders" (what I asked to buy, with Cancel)
+// - a farmer sees "Orders received" (requests for their crops, with Accept and Decline)
 // Each button sends PATCH /api/orders/:id with the new status. Decline and Cancel put the kilos
 // back on the listing (the server does it in server/orders.js).
 import { useCallback, useEffect, useState } from "react";
@@ -63,8 +64,11 @@ function Orders() {
     setLoading(true);
     setError("");
     try {
-      setMyOrders(await getMyOrders()); // READ: GET /api/orders/mine
-      if (isFarmer) setReceived(await getReceivedOrders()); // READ: GET /api/orders/received
+      if (isFarmer) {
+        setReceived(await getReceivedOrders()); // READ: GET /api/orders/received
+      } else {
+        setMyOrders(await getMyOrders()); // READ: GET /api/orders/mine
+      }
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -100,7 +104,7 @@ function Orders() {
         <h1>Orders</h1>
         <p>
           {isFarmer
-            ? "Order requests for your crops, and the orders you sent."
+            ? "Order requests from buyers for your crops. Accept or decline each one."
             : "Your order requests. The farmer accepts or declines each one."}
         </p>
       </div>
@@ -140,7 +144,13 @@ function Orders() {
                             type="button"
                             className="btn btn-primary"
                             disabled={busyId === order.id}
-                            onClick={() => changeStatus(order, "accepted", `You accepted ${order.buyerName}'s order. Contact them to arrange pickup.`)}
+                            onClick={() =>
+                              changeStatus(
+                                order,
+                                "accepted",
+                                `You accepted ${order.buyerName}'s order. Contact them to arrange pickup.`,
+                              )
+                            }
                           >
                             Accept
                           </button>
@@ -148,7 +158,13 @@ function Orders() {
                             type="button"
                             className="btn btn-danger"
                             disabled={busyId === order.id}
-                            onClick={() => changeStatus(order, "declined", `You declined the order. ${order.quantityKg} kg went back to your ${order.crop} listing.`)}
+                            onClick={() =>
+                              changeStatus(
+                                order,
+                                "declined",
+                                `You declined the order. ${order.quantityKg} kg went back to your ${order.crop} listing.`,
+                              )
+                            }
                           >
                             Decline
                           </button>
@@ -161,40 +177,42 @@ function Orders() {
             </div>
           )}
 
-          <div className="card orders-card">
-            <h2>My orders</h2>
-            {myOrders.length === 0 ? (
-              <p className="muted">
-                You haven't ordered anything yet. <Link to="/marketplace">Browse the Marketplace</Link>
-              </p>
-            ) : (
-              <ul className="order-list">
-                {myOrders.map((order) => (
-                  <OrderRow
-                    key={order.id}
-                    order={order}
-                    who={
-                      <>
-                        From <strong>{order.farmerName}</strong> in {order.town}{" "}
-                        {order.farmerContact && <a href={`tel:${order.farmerContact}`}>{order.farmerContact}</a>}
-                      </>
-                    }
-                  >
-                    {order.status === "pending" && (
-                      <button
-                        type="button"
-                        className="btn btn-danger"
-                        disabled={busyId === order.id}
-                        onClick={() => changeStatus(order, "cancelled", `Your ${order.crop} order is cancelled.`)}
-                      >
-                        Cancel order
-                      </button>
-                    )}
-                  </OrderRow>
-                ))}
-              </ul>
-            )}
-          </div>
+          {!isFarmer && (
+            <div className="card orders-card">
+              <h2>My orders</h2>
+              {myOrders.length === 0 ? (
+                <p className="muted">
+                  You haven't ordered anything yet. <Link to="/marketplace">Browse the Marketplace</Link>
+                </p>
+              ) : (
+                <ul className="order-list">
+                  {myOrders.map((order) => (
+                    <OrderRow
+                      key={order.id}
+                      order={order}
+                      who={
+                        <>
+                          From <strong>{order.farmerName}</strong> in {order.town}{" "}
+                          {order.farmerContact && <a href={`tel:${order.farmerContact}`}>{order.farmerContact}</a>}
+                        </>
+                      }
+                    >
+                      {order.status === "pending" && (
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          disabled={busyId === order.id}
+                          onClick={() => changeStatus(order, "cancelled", `Your ${order.crop} order is cancelled.`)}
+                        >
+                          Cancel order
+                        </button>
+                      )}
+                    </OrderRow>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </>
       )}
     </section>

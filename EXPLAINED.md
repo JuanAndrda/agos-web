@@ -255,7 +255,7 @@ Anyone can open the browser tools and try to change data directly, so Firestore 
 | 201 Created | A new listing was saved, or the cart was sent as orders |
 | 400 Bad Request | Search text longer than 50 characters, a listing with wrong data (like price 0), nothing to change, or broken JSON |
 | 401 Unauthorized | No login token, or a fake or expired one |
-| 403 Forbidden | A buyer tries to post, someone tries to change or delete another farmer's listing, a farmer orders their own crop, or someone accepts, declines or cancels an order that isn't theirs |
+| 403 Forbidden | A buyer tries to post, someone tries to change or delete another farmer's listing, a farmer tries to place an order ("Only buyers can place orders."), or someone accepts, declines or cancels an order that isn't theirs |
 | 404 Not Found | `/api/prices/Banana` (crop we don't track), a listing or order that doesn't exist, or Wikipedia has no page |
 | 409 Conflict | An order asks for more kilos than are left ("Only 2 kg of Tomato is left"), the listing is sold out, or the order was already accepted, declined or cancelled |
 | 500 Server Error | Something crashed inside our server |
@@ -397,7 +397,7 @@ The look changed to a modern "fresh market" style. **No feature changed**: the s
 ---
 
 ## 14. Suggested price, cart and orders (Nov 17)
-Three new features, built on top of the redesign. Juan approved them on Nov 17.
+Three new features, built on top of the redesign. Juan approved them on Nov 17, and later that day decided that farmers only sell and buyers only buy.
 
 ### Part 1: the PSA suggested price
 **What you see:** on the "Post a crop" form, choose a crop and a green box shows *"PSA farmgate price for Tomato: ₱48.20/kg (June 2026)"* with a **Use this price** button. The button copies the price into the price box. The farmer can still type any price.
@@ -414,16 +414,19 @@ Three new features, built on top of the redesign. Juan approved them on Nov 17.
 
 | Endpoint | Who | What it does |
 |---|---|---|
-| `POST /api/orders` | anyone logged in | Checkout. React sends `{ items: [{ listingId, quantityKg }] }`. Makes one order per listing and lowers each listing's stock. |
-| `GET /api/orders/mine` | anyone logged in | The orders I sent ("My orders") |
-| `GET /api/orders/received` | anyone logged in (only farmers get any) | The orders on my listings ("Orders received") |
+| `POST /api/orders` | buyers only | Checkout. React sends `{ items: [{ listingId, quantityKg }] }`. Makes one order per listing and lowers each listing's stock. |
+| `GET /api/orders/mine` | buyers only | The orders I sent ("My orders") |
+| `GET /api/orders/received` | farmers only | The orders on my listings ("Orders received") |
 | `PATCH /api/orders/:id` | the buyer or the farmer of that order | `{ status: "accepted" }` or `"declined"` (the farmer), `"cancelled"` (the buyer) |
 
+**Farmers sell, buyers buy.** The roles are checked by middleware in `server/auth.js`, the same way `requireFarmer` already protects posting a listing. The new `requireBuyer` answers **403 "Only buyers can place orders."** to anyone who isn't a buyer. The role comes from the person's `users` document in Firestore, not from React, so nobody can fake it.
+
 **The checks in `POST /api/orders`, in order:**
+0. You are logged in (`requireLogin`, else **401**) and you are a buyer (`requireBuyer`, else **403**).
 1. The cart is not empty, has at most 20 listings, and no listing twice → else **400**.
 2. Each quantity is a whole number of kilos, more than 0 → else **400**.
 3. The listing still exists → else **404**.
-4. It isn't your own listing → else **403**.
+4. It isn't your own listing → else **403**. (Buyers have no listings, so this is only extra safety.)
 5. It isn't sold out → else **409**.
 6. You don't want more than is left → else **409** "Only 2 kg of Tomato from Ana Reyes is left."
 
@@ -448,15 +451,16 @@ Three new features, built on top of the redesign. Juan approved them on Nov 17.
 | `context/CartContext.js` | New. Keeps the cart in React state, like `AuthContext.js` keeps the user. `addToCart`, `changeQuantity`, `removeFromCart`, `clearCart`. The cart empties when someone else logs in. It isn't saved anywhere, so a page reload empties it too. |
 | `components/AddToCart.js` | New. The "kilos + Add to cart" box on each Marketplace card. Checks: whole kilos, more than 0, and not more than what's left (it counts what's already in your cart). |
 | `pages/Cart.js` | New. Change kilos, remove, the total (`reduce()`), and **Send order request** → `POST /api/orders`. If the server says no (for example someone else bought first), its message is shown and the cart stays. |
-| `pages/Marketplace.js` | Each card gets `<AddToCart>`. Your own listings say "This is your listing" instead. |
-| `components/Navbar.js` | A cart button with the number of items, and an **Orders** link. |
-| `App.js` | `<CartProvider>` around the app, and the routes `/cart` and `/orders`. |
+| `pages/Marketplace.js` | Buyers get `<AddToCart>` on each card. Farmers get no box, and their own listings say "This is your listing". |
+| `components/Navbar.js` | A cart button with the number of items (buyers only), and an **Orders** link (everyone). |
+| `App.js` | `<CartProvider>` around the app, and the routes `/cart` (`<ProtectedRoute role="buyer">`, so a farmer is sent to the Marketplace) and `/orders`. |
 
 **Why check in React AND on the server?** React checks first so the buyer gets a quick message. The server checks again because the stock can change after the page loaded, and because anyone can send a request without our page.
 
 ### Part 4: the Orders page (`pages/Orders.js`)
-- **My orders** (everyone): each order with its status in words (Waiting for the farmer, Accepted, Declined, Cancelled) and a **Cancel order** button while it's waiting.
-- **Orders received** (farmers only): **Accept** and **Decline** buttons while it's waiting.
+The page shows one list, depending on your role (`isFarmer` in the code):
+- **Buyer → My orders:** each order with its status in words (Waiting for the farmer, Accepted, Declined, Cancelled) and a **Cancel order** button while it's waiting.
+- **Farmer → Orders received:** the buyer's name and email, with **Accept** and **Decline** buttons while it's waiting.
 - Each button calls `setOrderStatus()` in `services/ordersService.js` → `PATCH /api/orders/:id`, then loads the list again.
 
 ### Other small changes
@@ -467,5 +471,5 @@ Three new features, built on top of the redesign. Juan approved them on Nov 17.
 
 **What Juan does once:** paste the new `firestore.rules` into the Firebase Console and click Publish. The app works without this step (our server uses Firebase Admin, which skips the rules), but publishing it stops anyone from reading orders straight from the browser.
 
-**Tested** on the Firebase emulators: 43 API checks (every status code above, the all-or-nothing cart, two buyers racing for the same kilos, decline and cancel putting kilos back) and 29 browser checks on a laptop and a phone size, with stand-in PSA prices. `npm run build` has no warnings.
+**Tested** on the Firebase emulators: 45 API checks (every status code above, farmers blocked from ordering, the all-or-nothing cart, two buyers racing for the same kilos, decline and cancel putting kilos back) and 33 browser checks on a laptop and a phone size, with stand-in PSA prices. `npm run build` has no warnings.
 

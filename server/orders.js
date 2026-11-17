@@ -9,7 +9,7 @@
 import express from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./firebaseAdmin.js";
-import { requireLogin } from "./auth.js";
+import { requireLogin, requireFarmer, requireBuyer } from "./auth.js";
 
 const router = express.Router();
 const MAX_ITEMS = 20; // the most different listings in one checkout
@@ -49,10 +49,10 @@ router.use((req, res, next) => {
   next();
 });
 
-// ---- POST /api/orders: send the cart as order requests (checkout) ----
+// ---- POST /api/orders: send the cart as order requests (checkout, buyers only) ----
 // React sends: { items: [{ listingId: "abc123", quantityKg: 5 }, ...] }
 // We make ONE order per listing, because each listing can be from a different farmer.
-router.post("/", requireLogin, async (req, res) => {
+router.post("/", requireLogin, requireBuyer, async (req, res) => {
   // 1. Check the shape of the cart before we touch the database
   const items = req.body && req.body.items;
   if (!Array.isArray(items) || items.length === 0) {
@@ -89,6 +89,7 @@ router.post("/", requireLogin, async (req, res) => {
           throw problem(404, "One of the crops in your cart was deleted by the farmer. Remove it and try again.");
         }
         const data = listing.data();
+        // Extra safety: buyers have no listings, but nobody may ever order their own crop
         if (data.ownerId === req.user.uid) {
           throw problem(403, `You can't order your own ${data.crop} listing.`);
         }
@@ -136,13 +137,13 @@ router.post("/", requireLogin, async (req, res) => {
 });
 
 // ---- GET /api/orders/mine: the orders I sent (the buyer's "My orders") ----
-router.get("/mine", requireLogin, async (req, res) => {
+router.get("/mine", requireLogin, requireBuyer, async (req, res) => {
   const snapshot = await adminDb.collection("orders").where("buyerId", "==", req.user.uid).get();
   res.json(newestFirst(snapshot.docs.map(toJson))); // 200 OK
 });
 
 // ---- GET /api/orders/received: the orders on my listings (the farmer's "Orders received") ----
-router.get("/received", requireLogin, async (req, res) => {
+router.get("/received", requireLogin, requireFarmer, async (req, res) => {
   const snapshot = await adminDb.collection("orders").where("farmerId", "==", req.user.uid).get();
   res.json(newestFirst(snapshot.docs.map(toJson))); // 200 OK
 });

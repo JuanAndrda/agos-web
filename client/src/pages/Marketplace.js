@@ -2,7 +2,8 @@
 // We load the listings from our server once (GET /api/listings), then search, filter and sort
 // them in React with .filter() and .sort(). Nothing is sent when a filter changes, so the
 // results change instantly while you type.
-// Since Nov 17 each card has an "Add to cart" box (AddToCart.js), except on your own listings.
+// Since Nov 17 buyers get an "Add to cart" box on each card (AddToCart.js). Farmers only sell,
+// so they get no box, and their own listings say "This is your listing".
 import { useCallback, useEffect, useState } from "react";
 import { getAvailableListings, friendlyListingError } from "../services/listingsService";
 import { TOWNS } from "../constants";
@@ -175,12 +176,8 @@ function Marketplace() {
             <div className="listing-grid">
               {shown.map((listing) => (
                 <ListingCard key={listing.id} listing={listing}>
-                  {/* You can't buy your own crop, so your own listings get a note instead */}
-                  {listing.ownerId === user.uid ? (
-                    <p className="cart-note">This is your listing.</p>
-                  ) : (
-                    <AddToCart listing={listing} />
-                  )}
+                  {user.role === "buyer" && <AddToCart listing={listing} />}
+                  {listing.ownerId === user.uid && <p className="cart-note">This is your listing.</p>}
                 </ListingCard>
               ))}
             </div>

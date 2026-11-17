@@ -45,7 +45,7 @@ function App() {
             <Route path="/crops/:cropName" element={<ProtectedRoute><CropDetails /></ProtectedRoute>} />
             <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
             <Route path="/my-listings" element={<ProtectedRoute role="farmer"><MyListings /></ProtectedRoute>} />
-            <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
+            <Route path="/cart" element={<ProtectedRoute role="buyer"><Cart /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
             {/* Any other URL goes back to the landing page */}
             <Route path="*" element={<Navigate to="/" replace />} />
