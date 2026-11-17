@@ -154,11 +154,16 @@ a {
   background: var(--leaf);
   color: #fff;
 }
+/* The right side takes the room that is left on the row. "min-width: 0" lets it get narrower
+   (the name is cut with "...") instead of dropping to a second row. */
 .nav-user {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   margin-left: auto;
+  flex: 1 1 0;
+  min-width: 0;
 }
 .user-name {
   display: flex;
@@ -183,6 +188,7 @@ a {
 }
 /* A long name is cut short with "..." so the navbar stays tidy */
 .user-name-text {
+  min-width: 0;
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -190,6 +196,7 @@ a {
 }
 /* The cart button in the top bar, with a small gold circle for the number of items */
 .cart-link {
+  flex-shrink: 0;
   position: relative;
   display: inline-grid;
   place-items: center;
@@ -1458,7 +1465,7 @@ a.summary-box:hover {
 
 /* ---------- Smaller laptops and tablets ---------- */
 /* Not enough room for everything on one row: the page links move to their own row */
-@media (max-width: 980px) {
+@media (max-width: 1080px) {
   .nav-links {
     order: 3;
     flex-basis: 100%;

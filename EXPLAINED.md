@@ -468,6 +468,7 @@ The page shows one list, depending on your role (`isFarmer` in the code):
 - `server/index.js` plugs in the orders routes: `app.use("/api/orders", ordersRouter)`.
 - `firestore.rules` locks the new `orders` collection, like listings.
 - On a phone the page links are a little smaller, so a farmer's 4 links fit in one row.
+- The top bar stays on one row on a laptop. The right side (`.nav-user`) has `flex: 1 1 0` and `min-width: 0`, so when space is short the long name gets shorter with "…" instead of the whole right side dropping to a second row. Below 1080 pixels wide (was 980) the page links move to their own row.
 
 **What Juan does once:** paste the new `firestore.rules` into the Firebase Console and click Publish. The app works without this step (our server uses Firebase Admin, which skips the rules), but publishing it stops anyone from reading orders straight from the browser.
 
