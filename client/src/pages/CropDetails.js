@@ -1,6 +1,7 @@
 // CropDetails.js: one crop's page. It uses TWO APIs at the same time:
 // Wikipedia (photo and description, called directly) and our server (PSA prices by month).
 // The crop name comes from the URL: /crops/Tomato -> cropName = "Tomato".
+// The prices are shown as 3 boxes (latest, previous month, change) and a line chart (PriceChart.js).
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CROPS, formatPeso } from "../constants";
@@ -8,6 +9,7 @@ import { getCropInfo } from "../services/wikipediaService";
 import { getPriceHistory } from "../services/pricesService";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
+import PriceChart from "../components/PriceChart";
 
 function CropDetails() {
   const { cropName: nameInUrl } = useParams();
@@ -76,7 +78,10 @@ function CropDetails() {
     );
   }
 
-  const latest = history[0];
+  const latest = history[0]; // PSA sends the newest month first
+  const previous = history[1]; // the month before it
+  const change = latest && previous ? latest.pricePerKg - previous.pricePerKg : null;
+  const changePercent = change !== null ? (change / previous.pricePerKg) * 100 : null;
 
   return (
     <section>
@@ -118,7 +123,7 @@ function CropDetails() {
         {/* Prices by month, from PSA through our server */}
         <article className="card">
           <h2>Farmgate price in Iloilo</h2>
-          <p className="source-line small">
+          <p className="source-line small muted">
             Source: <strong>PSA OpenSTAT</strong> · monthly, not real-time
           </p>
           {pricesLoading && <Loading text="Getting prices from PSA..." />}
@@ -128,31 +133,65 @@ function CropDetails() {
           )}
           {!pricesLoading && !pricesError && latest && (
             <>
-              <p className="big-price">
-                ₱{formatPeso(latest.pricePerKg)} <span>per kg</span>
-              </p>
-              <p className="muted small">Newest PSA price: {latest.month}</p>
-              <div className="table-wrap">
-                <table className="price-table">
-                  <caption>Price per kg, newest month first</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Month</th>
-                      <th scope="col" className="num">
-                        Price per kg
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((p) => (
-                      <tr key={p.monthKey}>
-                        <td>{p.month}</td>
-                        <td className="num price">₱{formatPeso(p.pricePerKg)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* 3 boxes: the newest price, the month before, and the difference */}
+              <div className="price-summary">
+                <div className="summary-box">
+                  <span>Latest price</span>
+                  <strong>₱{formatPeso(latest.pricePerKg)}</strong>
+                  <small>{latest.month} · per kg</small>
+                </div>
+                {previous && (
+                  <div className="summary-box">
+                    <span>Previous month</span>
+                    <strong>₱{formatPeso(previous.pricePerKg)}</strong>
+                    <small>{previous.month} · per kg</small>
+                  </div>
+                )}
+                {change !== null && (
+                  // The arrow AND the words say up or down, so it doesn't depend on color
+                  <div className="summary-box">
+                    <span>Change</span>
+                    <strong>
+                      {change > 0 ? "▲" : change < 0 ? "▼" : "="} ₱{formatPeso(Math.abs(change))}
+                    </strong>
+                    <small>
+                      {change > 0 ? "Up" : change < 0 ? "Down" : "No change"}{" "}
+                      {change !== 0 && `${Math.abs(changePercent).toFixed(1)}% `}from {previous.month}
+                    </small>
+                  </div>
+                )}
               </div>
+
+              <h3 className="chart-title">Price per kg, last {history.length} months</h3>
+              {/* key={cropName}: start fresh (newest month selected) when the crop changes */}
+              <PriceChart key={cropName} history={history} />
+              <p className="muted small">Click a point, or press Tab and Enter, to see that month's price.</p>
+
+              {/* The same numbers as a table, for anyone who prefers a list. <details> opens and closes by itself. */}
+              <details className="table-toggle">
+                <summary>Show all months as a table</summary>
+                <div className="table-wrap">
+                  <table className="price-table">
+                    <caption>Price per kg, newest month first</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Month</th>
+                        <th scope="col" className="num">
+                          Price per kg
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map((p) => (
+                        <tr key={p.monthKey}>
+                          <td>{p.month}</td>
+                          <td className="num price">₱{formatPeso(p.pricePerKg)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
             </>
           )}
         </article>

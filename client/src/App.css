@@ -954,9 +954,10 @@ a.summary-box:hover {
 .back-link:hover {
   text-decoration: underline;
 }
+/* About (narrow, left) and the prices (wide, right). minmax(0, ...) lets the chart shrink. */
 .details-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: 20px;
   align-items: start;
 }
@@ -967,18 +968,96 @@ a.summary-box:hover {
   border-radius: 12px;
   background: var(--leaf-soft);
 }
-.big-price {
-  font-family: var(--display);
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: var(--leaf-dark);
-  margin: 8px 0 0;
+.chart-title {
+  margin: 24px 0 8px;
+  font-size: 1.05rem;
 }
-.big-price span {
-  font-family: var(--body);
-  font-size: 1rem;
-  font-weight: 400;
+
+/* ---------- The price chart (PriceChart.js) ---------- */
+/* The line above the chart that says the selected month and its price */
+.chart-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 4px;
+}
+.chart-readout-price {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: var(--leaf-dark);
+}
+.chart-readout-change {
+  font-size: 0.88rem;
   color: var(--muted);
+}
+.chart-box {
+  width: 100%; /* PriceChart measures this box to know how wide to draw */
+}
+.chart-box svg {
+  display: block;
+  overflow: visible;
+}
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart-label {
+  fill: var(--muted);
+  font-size: 12px;
+  font-family: var(--body);
+}
+.chart-area {
+  fill: var(--leaf-soft);
+  opacity: 0.7;
+}
+.chart-line {
+  fill: none;
+  stroke: var(--leaf);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+.chart-crosshair {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.chart-point {
+  cursor: pointer;
+}
+.chart-point:focus {
+  outline: none; /* we draw our own focus ring on the dot below */
+}
+.chart-hit {
+  fill: transparent; /* invisible, but it can still be clicked */
+}
+.chart-dot {
+  fill: var(--surface);
+  stroke: var(--leaf);
+  stroke-width: 2;
+  transition: r 0.15s;
+}
+.chart-point.selected .chart-dot {
+  fill: var(--leaf);
+  stroke: var(--surface);
+  stroke-width: 3;
+}
+.chart-point:focus-visible .chart-dot {
+  stroke: var(--focus);
+  stroke-width: 3;
+}
+/* "Show all months as a table" */
+.table-toggle {
+  margin-top: 12px;
+}
+.table-toggle summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px; /* big enough to tap */
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--leaf);
 }
 
 /* ---------- Listings (product cards) ---------- */
@@ -1187,6 +1266,9 @@ a.summary-box:hover {
   }
 }
 @media (max-width: 800px) {
+  .details-grid {
+    grid-template-columns: minmax(0, 1fr); /* About and the prices stack on top of each other */
+  }
   .hero {
     grid-template-columns: 1fr;
     padding: 28px;
