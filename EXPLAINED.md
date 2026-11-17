@@ -157,18 +157,18 @@ Decides which page shows for each URL, with `BrowserRouter`, `Routes` and `Route
 
 | URL | Page | Who can open it |
 |---|---|---|
+| `/` | Home (the landing page) | Everyone |
 | `/login`, `/register` | Login, Register | Everyone |
-| `/` | goes to `/prices` | |
 | `/prices` | Market Prices | Logged-in users |
 | `/crops/:cropName` | Crop Details (`:cropName` is read from the URL) | Logged-in users |
 | `/marketplace` | Marketplace | Logged-in users |
 | `/my-listings` | My Listings | Farmers only |
-| anything else | goes to `/prices` | |
+| anything else | goes to `/` (Home) | |
 
 If `client/.env` is missing, App.js shows "Firebase keys are missing" and how to fix it, instead of a blank page.
 
 ### `src/App.css`: the styles
-All colors are saved as variables at the top (`--brand`, `--gdark`...), the same colors as Agos, so the look stays consistent. At the bottom, `@media (max-width: 600px)` adjusts the layout for phones (responsive design).
+All colors and fonts are saved as variables at the top (`--leaf`, `--leaf-dark`, `--harvest`...), so the look stays consistent and one change updates the whole app. The file is split into sections with titles, like `/* ---------- Navbar ---------- */`, in the same order as the screen: top bar, buttons, forms, page banner, Home, Log in, tables, listing cards. At the bottom, `@media (max-width: ...)` rules adjust the layout for tablets and phones (responsive design). See section 13 for the Nov 17 redesign.
 
 ### `src/firebase.js`: connects to Firebase
 Reads the keys from `.env`, starts Firebase with `initializeApp`, and exports `auth` (login) and `db` (database). `firebaseReady` is `true` only when the keys are there.
@@ -191,7 +191,7 @@ It also has one small helper, `formatPeso(1500)`, which gives `"1,500.00"`: two 
 | `authService.js` | Firebase Auth + `users` collection | `register`, `login`, `logout`, `getProfile`, `friendlyAuthError` |
 | `listingsService.js` | Our Express server | `getAvailableListings` → `GET /api/listings` and `getMyListings` → `GET /api/listings/mine` (Read), `addListing` → `POST` (Create), `updateListing` and `markSold` → `PATCH /api/listings/:id` (Update), `deleteListing` → `DELETE /api/listings/:id` (Delete), `friendlyListingError` |
 | `pricesService.js` | Our Express server | `getPrices(search)` → `GET /api/prices`, `getPriceHistory(crop)` → `GET /api/prices/:crop` |
-| `wikipediaService.js` | Wikipedia | `getCropInfo(cropName)` → `{ title, description, photo, link }` |
+| `wikipediaService.js` | Wikipedia | `getCropInfo(cropName)` → `{ title, description, photo, link }`, and `getCropPhotos(crops)`, which gets many photos at the same time with `Promise.all` (Home and Market Prices use it) |
 
 Two details to point out:
 - **Friendly errors:** Firebase sends codes like `auth/invalid-credential`. `friendlyAuthError` turns them into "Wrong email or password." Our own server already answers in plain words (like "Only farmers can do this."), so `friendlyListingError` simply shows that message.
@@ -204,7 +204,10 @@ The frame every page sits in: `Navbar`, then the page (`children`), then `Footer
 ### `src/components/`: reusable pieces
 | File | What it does |
 |---|---|
-| `Navbar.js` | The green top bar. Uses `NavLink`, which highlights the page you're on. Shows My Listings only to farmers, plus the person's name, role and Log out. A long name is cut short with "…" so the bar stays tidy, and the full name shows when you point at it (the `title` attribute). Moving between pages doesn't reload the page, so our app is a single-page application (SPA). |
+| `Logo.js` | Our small leaf logo, drawn with SVG code instead of an image file. It uses `currentColor`, so it takes the color of the text around it. |
+| `PriceChart.js` | The line chart on Crop Details, drawn with SVG, no chart library. A `ResizeObserver` measures the box so the chart fills it. Each price becomes a point (`xOf` for left-right by month, `yOf` for up-down by price), and the line is an SVG `path` ("M" moves the pen, "L" draws to the next point). Each point is a button: click it, point at it, or Tab to it and press Enter, and the line above the chart shows that month's price and how it changed from the month before. |
+| `AuthPanel.js` | The green welcome panel on the left of Log in and Register (the split screen). Both pages share it. |
+| `Navbar.js` | The white top bar (green before Nov 17). When nobody is logged in it shows Log in and Create account. Uses `NavLink`, which highlights the page you're on. Shows My Listings only to farmers, plus the person's name, role and Log out. A long name is cut short with "…" so the bar stays tidy, and the full name shows when you point at it (the `title` attribute). Moving between pages doesn't reload the page, so our app is a single-page application (SPA). |
 | `Footer.js` | Says where our data comes from (PSA, monthly, not real-time; Wikipedia). |
 | `Loading.js` | A spinner and text while we wait for an API. |
 | `ErrorMessage.js` | A red box with the problem and a "Try again" button. |
@@ -218,10 +221,11 @@ Every page that uses an API follows the same pattern. **State** for the data, lo
 
 Every page also sets the name in the browser tab, like "Market Prices · AgosUgnayan Web", with one small `useEffect` that changes `document.title`.
 
+- **`Home.js`** (Nov 17): the landing page at `/`. Anyone can open it. A big welcome box (the "hero"), one tile per crop with its newest PSA price (`GET /api/prices`, which needs no login) and its Wikipedia photo (`getCropInfo`, the same as Crop Details), and "How it works" in 3 steps. `getCropPhotos` (in `wikipediaService.js`) asks Wikipedia for all the photos at the same time with `Promise.all`; if one photo fails, that tile shows the crop's first letter instead.
 - **`Login.js`**: email and password. Checks that both are filled, calls `login()`, and shows Firebase errors in plain words.
 - **`Register.js`**: name, email, password (6+ characters) and a Farmer/Buyer choice. `checkForm()` finds every problem at once and shows each one under its own field, the same way as the listing form, then puts the cursor in the first one. Calls `register()`, then `refreshUser()`.
-- **`MarketPrices.js`**: the newest PSA farmgate price of each crop, with search. Always shows the source ("PSA OpenSTAT"), the month of each price, and when our server last checked PSA, written as "Nov 5, 2026, 2:14 AM" so nobody mixes up the day and the month. `useCallback` keeps `loadPrices` the same between redraws, so `useEffect` runs only once.
-- **`CropDetails.js`**: uses two APIs at the same time. It finds the crop whatever the capital letters are, so `/crops/tomato` also works. The left card is Wikipedia (photo and description). The right card is our server (`GET /api/prices/Tomato`): the newest price and the last 12 months. Each card has its own loading and error, so if Wikipedia is down, the prices still show.
+- **`MarketPrices.js`**: the newest PSA farmgate price of each crop, with search. Since Nov 17 each crop is a clickable card with its Wikipedia photo, price and month; clicking it opens Crop Details. Above the cards, 3 summary boxes show the lowest price, the highest price and how many crops are shown. They are worked out in React with `reduce()` from the same prices, so there is no extra API call. Always shows the source ("PSA OpenSTAT"), the month of each price, and when our server last checked PSA, written as "Nov 5, 2026, 2:14 AM" so nobody mixes up the day and the month. `useCallback` keeps `loadPrices` the same between redraws, so `useEffect` runs only once.
+- **`CropDetails.js`**: uses two APIs at the same time. It finds the crop whatever the capital letters are, so `/crops/tomato` also works. The left card is Wikipedia (photo and description). The right card is our server (`GET /api/prices/Tomato`): since Nov 17 it shows 3 boxes (latest price, previous month, and the change up or down in pesos and %), then a line chart of the last 12 months (`PriceChart.js`). The table is still there behind "Show all months as a table" (a `<details>` element, which opens and closes without any JavaScript). Each card has its own loading and error, so if Wikipedia is down, the prices still show.
 - **`Marketplace.js`**: loads every available listing once from our server (`GET /api/listings`), then searches, filters (town, min and max price) and sorts (newest, price low→high, high→low) in React with `.filter()` and `.sort()`. Shows "Showing 2 of 5 listings" and a Clear filters button. If the max price is lower than the min price, it says so under the Max field instead of just showing "no listings". The filters stay in React, not on the server, so the results change instantly while you type, with no waiting.
 - **`MyListings.js`**: the farmer's own listings with all of CRUD, each one a request to our server. **Post a crop** (Create, `POST`), the list (Read, `GET /mine`), **Edit** and **Mark as sold** (Update, `PATCH`), **Delete** (`DELETE`). Delete asks "This can't be undone" first. Every action shows a success or error message, and the buttons are disabled while it saves.
 
@@ -365,3 +369,26 @@ git diff                   # see what changed since the last save
 git checkout -- <file>     # throw away unsaved changes to one file
 git revert <commit-id>     # undo one saved step, keeping everything after it
 ```
+
+---
+
+## 13. The redesign (Nov 17)
+The look changed to a modern "fresh market" style. **No feature changed**: the same pages, buttons, checks, messages and API calls. The one new page is Home.
+
+| What you see | How it's done | Files |
+|---|---|---|
+| New colors: leaf green, deep green, soft green, and one warm "harvest gold" for small highlights | The variables at the top of `App.css` got new names and values | `App.css` |
+| New heading font, Plus Jakarta Sans (Inter stays for normal text) | One Google Fonts link | `public/index.html`, `App.css` (`--display`) |
+| White top bar with a leaf logo, the page links in one round "pill", and a round avatar with your initials | `initials("Ana Reyes")` gives "AR". `position: sticky` keeps the bar at the top while you scroll | `Navbar.js`, `Logo.js`, `App.css` |
+| A green banner at the top of Market Prices, Crop Details, Marketplace and My Listings | A `<div className="page-banner">` around each page's title. On the Marketplace, `page-banner-tall` plus a negative margin makes the filter box overlap the banner | the 4 pages, `App.css` |
+| Listings look like product cards: a colored top with the crop name and status, then the price, facts, and "Sold by ... ☎ number" at the bottom | `ListingCard.js` has the same data in a new order. `.listing-card:hover` lifts the card a little | `ListingCard.js`, `App.css` |
+| Market Prices as clickable cards with photos (5 in a row on a laptop, 2 on a phone), the search inside the green banner, and 3 summary boxes: lowest price, highest price, crops shown | The table became a grid of `<Link className="price-card">`, so the whole card is clickable. `getCropPhotos(CROPS)` loads the 10 photos once. `reduce()` finds the lowest and highest price. The lowest and highest boxes are links to that crop too | `MarketPrices.js`, `wikipediaService.js`, `App.css` |
+| Log in and Register as a split screen | `.auth-page` is a CSS grid with 2 columns: `AuthPanel` and the form. On a phone it becomes 1 column | `Login.js`, `Register.js`, `AuthPanel.js`, `App.css` |
+| A line chart of the price history on Crop Details, with Latest price, Previous month and Change boxes. Click a point to see that month's price | `PriceChart.js` draws it with SVG. The change is `latest - previous`, and the % is `change / previous × 100`. Up or down is shown with ▲/▼ and the words "Up"/"Down", not color alone | `CropDetails.js`, `PriceChart.js`, `App.css` |
+| A Home page | See `Home.js` above. The drawing is `public/basket.svg` | `Home.js`, `App.js`, `public/basket.svg` |
+| Log out now goes to Home instead of Log in | `navigate("/")` | `Navbar.js` |
+
+**The usability fixes from section 9 are kept:** buttons and links at least 44 pixels tall, the orange keyboard focus ring, long names cut with "…", errors written in words under each field, "Available" and "Sold" in words, the 3-row top bar on phones, and no sideways scrolling. New on phones: "Create account" hides from the top bar to save room (Home and Log in still link to it), and the Home drawing hides so the text comes first.
+
+**Tested** with the same emulator setup as section 11, on a laptop size (1280 pixels) and a phone size (390 pixels), with stand-in prices, listings and photos. `npm run build` has no warnings.
+

@@ -36,3 +36,15 @@ export async function getCropInfo(cropName) {
     link: data.content_urls?.desktop?.page,
   };
 }
+
+// Gets the photos of many crops at the same time (Promise.all), and returns them like
+// { Tomato: "https://upload.wikimedia.org/...", ... }. Used by Home and Market Prices.
+// If one photo fails, we just skip it, so that card shows a letter and the rest still work.
+export async function getCropPhotos(crops) {
+  const results = await Promise.all(crops.map((crop) => getCropInfo(crop).catch(() => null)));
+  const photos = {};
+  crops.forEach((crop, i) => {
+    if (results[i]?.photo) photos[crop] = results[i].photo;
+  });
+  return photos;
+}

@@ -1,9 +1,20 @@
-// Navbar.js: the green bar at the top. NavLink is React Router's Link that also knows
+// Navbar.js: the white bar at the top. NavLink is React Router's Link that also knows
 // which page is open, so we can highlight it. Moving between pages doesn't reload the
 // whole page: that is what makes our app a single-page application (SPA).
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { logout } from "../services/authService";
+import Logo from "./Logo";
+
+// "Ana Reyes" -> "AR", for the round avatar. One-word names give one letter.
+function initials(name) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0].toUpperCase())
+    .join("");
+}
 
 function Navbar() {
   const { user } = useAuth();
@@ -11,13 +22,16 @@ function Navbar() {
 
   async function handleLogout() {
     await logout();
-    navigate("/login");
+    navigate("/");
   }
+
+  const shownName = user ? user.name || user.email : "";
 
   return (
     <header className="navbar">
       <div className="navbar-inner">
-        <Link to="/prices" className="brand">
+        <Link to="/" className="brand">
+          <Logo />
           AgosUgnayan
         </Link>
 
@@ -33,10 +47,13 @@ function Navbar() {
           {user ? (
             <>
               <span className="user-name">
+                <span className="avatar" aria-hidden="true">
+                  {initials(shownName)}
+                </span>
                 {/* A long name is cut short with "..." by App.css. "title" shows the full name
                     when you point at it with the mouse. */}
-                <span className="user-name-text" title={user.name || user.email}>
-                  {user.name || user.email}
+                <span className="user-name-text" title={shownName}>
+                  {shownName}
                 </span>
                 {user.role && <span className="role-badge">{user.role === "farmer" ? "Farmer" : "Buyer"}</span>}
               </span>
@@ -45,7 +62,14 @@ function Navbar() {
               </button>
             </>
           ) : (
-            <NavLink to="/login">Log in</NavLink>
+            <>
+              <Link to="/login" className="btn btn-light">
+                Log in
+              </Link>
+              <Link to="/register" className="btn btn-primary btn-pill nav-signup">
+                Create account
+              </Link>
+            </>
           )}
         </div>
       </div>

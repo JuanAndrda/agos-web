@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import AuthPanel from "../components/AuthPanel";
 import { login, friendlyAuthError } from "../services/authService";
 
 function Login() {
@@ -42,46 +43,50 @@ function Login() {
   }
 
   return (
-    <section className="auth-card">
-      <h1>Log in</h1>
-      <p className="muted">See Iloilo crop prices and the marketplace.</p>
+    // auth-page puts the green AuthPanel and the form side by side (the "split screen")
+    <div className="auth-page">
+      <AuthPanel />
+      <section className="auth-card">
+        <h1>Log in</h1>
+        <p className="muted">See Iloilo crop prices and the marketplace.</p>
 
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="field">
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="btn btn-primary btn-block" disabled={saving}>
+            {saving ? "Logging in..." : "Log in"}
+          </button>
+        </form>
+
+        <p className="auth-switch">
+          No account yet? <Link to="/register">Create one</Link>
         </p>
-      )}
-
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="field">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <button type="submit" className="btn btn-primary btn-block" disabled={saving}>
-          {saving ? "Logging in..." : "Log in"}
-        </button>
-      </form>
-
-      <p className="auth-switch">
-        No account yet? <Link to="/register">Create one</Link>
-      </p>
-    </section>
+      </section>
+    </div>
   );
 }
 
