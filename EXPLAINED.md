@@ -235,6 +235,7 @@ Every page also sets the name in the browser tab, like "Market Prices · AgosUgn
 Anyone can open the browser tools and try to change data directly, so Firestore checks every request against these rules **on Google's servers**. That makes them part of our server-side logic.
 - `request.auth` is the person asking.
 - **`users`:** logged-in people can read profiles (to show names), and people can only write their own profile.
+- **`orders` (Nov 17): `allow read, write: if false`**, the same as listings. Only `server/orders.js` uses orders.
 - **`listings`: `allow read, write: if false`**, which means nobody, from any browser. Since Nov 15 only our server uses listings, and Firebase Admin skips the rules. Blocking everyone else means nobody can skip our server's checks by calling Firestore directly. The checks that used to be here (farmers only, your own listings only, numbers above 0) now live in `server/auth.js` and `server/listings.js`.
 
 ---
@@ -243,19 +244,20 @@ Anyone can open the browser tools and try to change data directly, so Firestore 
 
 | Method | Where |
 |---|---|
-| GET | `GET /api/prices`, `GET /api/prices/:crop`, `GET /api/listings`, `GET /api/listings/mine` (React → our server), GET the PSA table codes (server → PSA), `GET /page/summary/...` (React → Wikipedia), `getDoc` (profiles in Firestore) |
-| POST | `POST /api/listings` (new listing, React → our server), server → PSA (sends the query), Firebase login and register |
-| PATCH | `PATCH /api/listings/:id` (edit, mark sold): only the fields we send change |
+| GET | `GET /api/prices`, `GET /api/prices/:crop`, `GET /api/listings`, `GET /api/listings/mine`, `GET /api/orders/mine`, `GET /api/orders/received` (React → our server), GET the PSA table codes (server → PSA), `GET /page/summary/...` (React → Wikipedia), `getDoc` (profiles in Firestore) |
+| POST | `POST /api/listings` (new listing, React → our server), `POST /api/orders` (checkout), server → PSA (sends the query), Firebase login and register |
+| PATCH | `PATCH /api/listings/:id` (edit, mark sold): only the fields we send change. `PATCH /api/orders/:id` (accept, decline, cancel) |
 | DELETE | `DELETE /api/listings/:id` (delete a listing) |
 
 | Code | When our app sends or gets it |
 |---|---|
 | 200 OK | Prices or listings loaded, a listing changed or deleted |
-| 201 Created | A new listing was saved |
+| 201 Created | A new listing was saved, or the cart was sent as orders |
 | 400 Bad Request | Search text longer than 50 characters, a listing with wrong data (like price 0), nothing to change, or broken JSON |
 | 401 Unauthorized | No login token, or a fake or expired one |
-| 403 Forbidden | A buyer tries to post, or someone tries to change or delete another farmer's listing |
-| 404 Not Found | `/api/prices/Banana` (crop we don't track), a listing that doesn't exist, or Wikipedia has no page |
+| 403 Forbidden | A buyer tries to post, someone tries to change or delete another farmer's listing, a farmer orders their own crop, or someone accepts, declines or cancels an order that isn't theirs |
+| 404 Not Found | `/api/prices/Banana` (crop we don't track), a listing or order that doesn't exist, or Wikipedia has no page |
+| 409 Conflict | An order asks for more kilos than are left ("Only 2 kg of Tomato is left"), the listing is sold out, or the order was already accepted, declined or cancelled |
 | 500 Server Error | Something crashed inside our server |
 | 502 Bad Gateway | PSA didn't answer our server |
 | 503 Service Unavailable | Our server has no Firebase key yet, so the listings are off |
@@ -391,4 +393,79 @@ The look changed to a modern "fresh market" style. **No feature changed**: the s
 **The usability fixes from section 9 are kept:** buttons and links at least 44 pixels tall, the orange keyboard focus ring, long names cut with "…", errors written in words under each field, "Available" and "Sold" in words, the 3-row top bar on phones, and no sideways scrolling. New on phones: "Create account" hides from the top bar to save room (Home and Log in still link to it), and the Home drawing hides so the text comes first.
 
 **Tested** with the same emulator setup as section 11, on a laptop size (1280 pixels) and a phone size (390 pixels), with stand-in prices, listings and photos. `npm run build` has no warnings.
+
+---
+
+## 14. Suggested price, cart and orders (Nov 17)
+Three new features, built on top of the redesign. Juan approved them on Nov 17.
+
+### Part 1: the PSA suggested price
+**What you see:** on the "Post a crop" form, choose a crop and a green box shows *"PSA farmgate price for Tomato: ₱48.20/kg (June 2026)"* with a **Use this price** button. The button copies the price into the price box. The farmer can still type any price.
+
+**How it works (file: `client/src/components/ListingForm.js`):**
+1. When the form opens, a `useEffect` calls `getPrices()` once. That is our own `GET /api/prices` (server/index.js), which gets the prices from PSA.
+2. We turn the list into an object by crop name, like `{ Tomato: { pricePerKg: 48.2, month: "June 2026" } }`, and keep it in state (`psaPrices`).
+3. `psaPrices[form.crop]` is the suggestion for the crop that is chosen. No new API was needed.
+4. `applySuggestedPrice()` does `setForm({ ...form, pricePerKg: ... })`, the same way typing does.
+5. If PSA is down, the form still works: it just says the PSA price isn't available.
+
+### Part 2: the orders API (server)
+**New file `server/orders.js`, 4 endpoints:**
+
+| Endpoint | Who | What it does |
+|---|---|---|
+| `POST /api/orders` | anyone logged in | Checkout. React sends `{ items: [{ listingId, quantityKg }] }`. Makes one order per listing and lowers each listing's stock. |
+| `GET /api/orders/mine` | anyone logged in | The orders I sent ("My orders") |
+| `GET /api/orders/received` | anyone logged in (only farmers get any) | The orders on my listings ("Orders received") |
+| `PATCH /api/orders/:id` | the buyer or the farmer of that order | `{ status: "accepted" }` or `"declined"` (the farmer), `"cancelled"` (the buyer) |
+
+**The checks in `POST /api/orders`, in order:**
+1. The cart is not empty, has at most 20 listings, and no listing twice → else **400**.
+2. Each quantity is a whole number of kilos, more than 0 → else **400**.
+3. The listing still exists → else **404**.
+4. It isn't your own listing → else **403**.
+5. It isn't sold out → else **409**.
+6. You don't want more than is left → else **409** "Only 2 kg of Tomato from Ana Reyes is left."
+
+**The Firestore transaction (the important part).** Two buyers could order the last 5 kg at the same moment. Without a transaction both would read "5 kg left", both would pass the check, and we would sell 10 kg. `adminDb.runTransaction()` fixes this:
+- **Read** all the listings first (`transaction.getAll`).
+- **Check** them. If one fails, we `throw`, and **nothing** is saved, not even the other items in the cart.
+- **Write** everything together: lower each stock (`transaction.update`) and save each order (`transaction.set`).
+- If someone else changed a listing between our read and our write, Firestore runs our code again with the new numbers. So only one buyer gets the last kilos and the other gets a 409. (We tested this with two buyers at once.)
+
+**Sold out:** when the stock reaches 0 kg, the server sets the listing's `status` to `"sold"`, so it leaves the Marketplace. The card says **Sold out** (in `ListingCard.js`) instead of "Sold", so the farmer can tell it apart from "Mark as sold".
+
+**What an order looks like in Firestore (`orders` collection):**
+`{ listingId, crop, quantityKg, pricePerKg, total, town, buyerId, buyerName, buyerEmail, farmerId, farmerName, farmerContact, status: "pending", createdAt }`. We copy the price and names into the order, so the order still makes sense if the farmer later edits or deletes the listing.
+
+**`PATCH /api/orders/:id`:** only a `"pending"` order can change (else **409**). Decline and Cancel put the kilos back on the listing, in a transaction too. If the listing was sold out because of orders, it becomes available again. If the farmer deleted the listing, the order still changes.
+
+**There is no payment.** An order is a request. After the farmer accepts, they agree on payment and pickup by phone (the buyer sees the farmer's number, the farmer sees the buyer's email).
+
+### Part 3: the cart (React)
+| File | What it does |
+|---|---|
+| `context/CartContext.js` | New. Keeps the cart in React state, like `AuthContext.js` keeps the user. `addToCart`, `changeQuantity`, `removeFromCart`, `clearCart`. The cart empties when someone else logs in. It isn't saved anywhere, so a page reload empties it too. |
+| `components/AddToCart.js` | New. The "kilos + Add to cart" box on each Marketplace card. Checks: whole kilos, more than 0, and not more than what's left (it counts what's already in your cart). |
+| `pages/Cart.js` | New. Change kilos, remove, the total (`reduce()`), and **Send order request** → `POST /api/orders`. If the server says no (for example someone else bought first), its message is shown and the cart stays. |
+| `pages/Marketplace.js` | Each card gets `<AddToCart>`. Your own listings say "This is your listing" instead. |
+| `components/Navbar.js` | A cart button with the number of items, and an **Orders** link. |
+| `App.js` | `<CartProvider>` around the app, and the routes `/cart` and `/orders`. |
+
+**Why check in React AND on the server?** React checks first so the buyer gets a quick message. The server checks again because the stock can change after the page loaded, and because anyone can send a request without our page.
+
+### Part 4: the Orders page (`pages/Orders.js`)
+- **My orders** (everyone): each order with its status in words (Waiting for the farmer, Accepted, Declined, Cancelled) and a **Cancel order** button while it's waiting.
+- **Orders received** (farmers only): **Accept** and **Decline** buttons while it's waiting.
+- Each button calls `setOrderStatus()` in `services/ordersService.js` → `PATCH /api/orders/:id`, then loads the list again.
+
+### Other small changes
+- `services/serverApi.js` is new: the "send a request with the login token" code that `listingsService.js` had. Now listings and orders both use it, so it's written once.
+- `server/index.js` plugs in the orders routes: `app.use("/api/orders", ordersRouter)`.
+- `firestore.rules` locks the new `orders` collection, like listings.
+- On a phone the page links are a little smaller, so a farmer's 4 links fit in one row.
+
+**What Juan does once:** paste the new `firestore.rules` into the Firebase Console and click Publish. The app works without this step (our server uses Firebase Admin, which skips the rules), but publishing it stops anyone from reading orders straight from the browser.
+
+**Tested** on the Firebase emulators: 43 API checks (every status code above, the all-or-nothing cart, two buyers racing for the same kilos, decline and cancel putting kilos back) and 29 browser checks on a laptop and a phone size, with stand-in PSA prices. `npm run build` has no warnings.
 

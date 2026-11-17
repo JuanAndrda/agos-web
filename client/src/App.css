@@ -188,6 +188,36 @@ a {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The cart button in the top bar, with a small gold circle for the number of items */
+.cart-link {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--leaf-dark);
+  border: 1px solid var(--border);
+}
+.cart-link:hover,
+.cart-link.active {
+  background: var(--leaf-soft);
+}
+.cart-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--harvest);
+  color: var(--leaf-dark);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
 .role-badge {
   flex-shrink: 0;
   padding: 2px 8px;
@@ -1250,6 +1280,175 @@ a.summary-box:hover {
   gap: 8px;
 }
 
+/* Hidden on screen but read by screen readers (for labels we don't need to show) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Suggested price (in the listing form) ---------- */
+.price-suggestion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--leaf-soft);
+  font-size: 0.9rem;
+}
+.price-suggestion p {
+  margin: 0;
+}
+
+/* ---------- Add to cart (on Marketplace cards) ---------- */
+.add-to-cart {
+  width: 100%;
+}
+.add-to-cart-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.add-to-cart-row input {
+  width: 72px;
+  min-height: 44px;
+}
+.add-to-cart-row .btn {
+  flex: 1;
+}
+.unit {
+  color: var(--muted);
+}
+.cart-note {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.cart-note:empty {
+  display: none;
+}
+
+/* ---------- Cart page ---------- */
+.cart-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* One row: the crop | the kilos box | the line total | Remove */
+.cart-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 120px auto;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cart-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cart-item-info strong {
+  font-family: var(--display);
+  font-size: 1.1rem;
+}
+.cart-item-kilos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+.cart-item-total {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}
+.cart-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  padding-top: 16px;
+  text-align: right;
+}
+.cart-total {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.cart-total strong {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  color: var(--leaf-dark);
+}
+
+/* ---------- Orders page ---------- */
+.orders-card {
+  margin-bottom: 20px;
+}
+.orders-card h2 {
+  margin-top: 0;
+}
+.order-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* One row: what and who | the total | the status | the buttons */
+.order-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+.order-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere; /* a long email address wraps instead of making the page wider */
+}
+.order-main strong:first-child {
+  font-family: var(--display);
+  font-size: 1.05rem;
+}
+.order-total {
+  margin: 0;
+  font-weight: 700;
+}
+.order-status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.order-pending {
+  background: var(--harvest-soft);
+  color: var(--harvest-ink);
+}
+.order-accepted {
+  background: var(--leaf-soft);
+  color: var(--leaf-dark);
+}
+.order-declined,
+.order-cancelled {
+  background: #eeeee9;
+  color: var(--muted);
+}
+.order-actions {
+  grid-column: 1 / -1; /* the buttons get their own row under the order */
+  display: flex;
+  gap: 8px;
+}
+
 /* Some people turn off animations on their computer. We respect that. */
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -1327,6 +1526,38 @@ a.summary-box:hover {
   .nav-user .btn + .btn {
     margin-left: 0; /* "Log in" and "Create account" stay next to each other */
   }
+  /* The cart button sits on the first row, just before "Log out" */
+  .cart-link {
+    order: 1;
+    margin-left: auto;
+  }
+  .nav-user .cart-link ~ .btn {
+    margin-left: 0;
+  }
+  /* The cart rows stack: the crop on top, then the kilos, total and Remove in one row */
+  .cart-item {
+    grid-template-columns: 1fr auto auto;
+  }
+  .cart-item-info {
+    grid-column: 1 / -1;
+  }
+  .cart-item-kilos {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .cart-item-kilos input {
+    width: 80px;
+  }
+  .cart-item-kilos .field-error {
+    flex-basis: 100%;
+  }
+  .order-row {
+    grid-template-columns: 1fr auto;
+  }
+  .order-main {
+    grid-column: 1 / -1;
+  }
   .user-name {
     order: 2;
     flex-basis: 100%;
@@ -1341,9 +1572,9 @@ a.summary-box:hover {
   .nav-links a {
     flex: 1 1 auto;
     justify-content: center;
-    padding: 8px 6px;
+    padding: 8px 4px; /* small, so a farmer's 4 links still fit in one row */
     white-space: nowrap;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
   .auth-card {
     padding: 24px 20px;

@@ -2,6 +2,7 @@
 // We load the listings from our server once (GET /api/listings), then search, filter and sort
 // them in React with .filter() and .sort(). Nothing is sent when a filter changes, so the
 // results change instantly while you type.
+// Since Nov 17 each card has an "Add to cart" box (AddToCart.js), except on your own listings.
 import { useCallback, useEffect, useState } from "react";
 import { getAvailableListings, friendlyListingError } from "../services/listingsService";
 import { TOWNS } from "../constants";
@@ -9,6 +10,8 @@ import SearchBar from "../components/SearchBar";
 import ListingCard from "../components/ListingCard";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
+import AddToCart from "../components/AddToCart";
+import { useAuth } from "../context/AuthContext";
 
 // Our server sends the time as text, like "2026-11-15T12:30:00.000Z". This turns it into a
 // number we can sort by.
@@ -17,6 +20,7 @@ function timeOf(listing) {
 }
 
 function Marketplace() {
+  const { user } = useAuth();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -170,7 +174,14 @@ function Marketplace() {
           ) : (
             <div className="listing-grid">
               {shown.map((listing) => (
-                <ListingCard key={listing.id} listing={listing} />
+                <ListingCard key={listing.id} listing={listing}>
+                  {/* You can't buy your own crop, so your own listings get a note instead */}
+                  {listing.ownerId === user.uid ? (
+                    <p className="cart-note">This is your listing.</p>
+                  ) : (
+                    <AddToCart listing={listing} />
+                  )}
+                </ListingCard>
               ))}
             </div>
           )}
