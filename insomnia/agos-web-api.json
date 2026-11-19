@@ -192,7 +192,7 @@
           "value": "Bearer {{ _.token }}"
         }
       ],
-      "description": "200 OK. 403 if it isn't yours, 404 if the id doesn't exist.",
+      "description": "200 OK. 403 if it isn't yours, 404 if the id doesn't exist. 409 if you change the crop, price or town while buyers have waiting or accepted orders.",
       "metaSortKey": 7,
       "body": {
         "mimeType": "application/json",
@@ -212,7 +212,7 @@
           "value": "Bearer {{ _.token }}"
         }
       ],
-      "description": "200 OK. Send it twice: the second time is 404 Not Found.",
+      "description": "200 OK. Send it twice: the second time is 404 Not Found. 409 Conflict if the listing still has waiting or accepted orders.",
       "metaSortKey": 8,
       "body": {}
     },
@@ -291,7 +291,7 @@
           "value": "Bearer {{ _.token }}"
         }
       ],
-      "description": "Switch to the Farmer environment to accept or decline, or Buyer to cancel. Farmer: accepted or declined. Buyer: cancelled. 200 OK, then 409 Conflict if you send it again.",
+      "description": "Switch to the Farmer environment to accept, decline or complete (\"completed\", only after \"accepted\"), or Buyer to cancel (only while pending). 200 OK, then 409 Conflict if the step isn't allowed anymore.",
       "metaSortKey": 12,
       "body": {
         "mimeType": "application/json",

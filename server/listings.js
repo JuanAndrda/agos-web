@@ -4,7 +4,7 @@
 //   check who it is (requireLogin, requireFarmer) -> check the data -> use the database ->
 //   answer with a STATUS CODE and JSON: res.status(201).json(...)
 // Status codes we use: 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized (in auth.js),
-// 403 Forbidden, 404 Not Found, 500 Internal Server Error, 503 Service Unavailable.
+// 403 Forbidden, 404 Not Found, 409 Conflict, 500 Internal Server Error, 503 Service Unavailable.
 import express from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./firebaseAdmin.js";
@@ -68,6 +68,31 @@ function toJson(doc) {
   return { id: doc.id, ...data, createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null };
 }
 
+// Counts the orders of one listing that are still "open": "pending" (waiting for the farmer)
+// or "accepted" (the deal is agreed). Declined, cancelled and completed orders don't count.
+// While a listing has open orders, it is LOCKED: it can't be deleted, and its crop, price and
+// town can't change, so the farmer can't change the deal after a buyer asked for it.
+function countOpenOrders(orderDocs) {
+  let pending = 0;
+  let accepted = 0;
+  for (const doc of orderDocs) {
+    if (doc.data().status === "pending") pending++;
+    if (doc.data().status === "accepted") accepted++;
+  }
+  return { pending: pending, accepted: accepted };
+}
+
+// The fields a buyer agreed to. They are locked while the listing has open orders.
+const LOCKED_FIELDS = ["crop", "pricePerKg", "town"];
+
+// "2 orders waiting and 1 accepted" -> used in the 409 messages
+function describeOrders(open) {
+  const parts = [];
+  if (open.pending > 0) parts.push(`${open.pending} order${open.pending === 1 ? "" : "s"} waiting`);
+  if (open.accepted > 0) parts.push(`${open.accepted} accepted`);
+  return parts.join(" and ");
+}
+
 // Runs before every endpoint below: is the server connected to Firebase? (See firebaseAdmin.js.)
 router.use((req, res, next) => {
   if (!adminDb) {
@@ -99,7 +124,19 @@ router.get("/", requireLogin, async (req, res) => {
 router.get("/mine", requireLogin, requireFarmer, async (req, res) => {
   try {
     const snapshot = await adminDb.collection("listings").where("ownerId", "==", req.user.uid).get();
-    res.status(200).json(snapshot.docs.map(toJson)); // 200 OK
+    // Also read this farmer's orders, so each listing can say how many open orders it has.
+    // The website uses it to show the lock and to turn off the Delete button.
+    const orders = await adminDb.collection("orders").where("farmerId", "==", req.user.uid).get();
+
+    const listings = snapshot.docs.map((doc) => {
+      const listing = toJson(doc);
+      const myOrders = orders.docs.filter((order) => order.data().listingId === doc.id);
+      const open = countOpenOrders(myOrders);
+      listing.pendingOrders = open.pending;
+      listing.acceptedOrders = open.accepted;
+      return listing;
+    });
+    res.status(200).json(listings); // 200 OK
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "We couldn't load your listings. Please try again." }); // 500
@@ -151,32 +188,58 @@ router.post("/", requireLogin, requireFarmer, async (req, res) => {
 // ":id" is a route parameter: for /api/listings/abc123, req.params.id is "abc123".
 router.patch("/:id", requireLogin, async (req, res) => {
   try {
-    // 1. Does the listing exist, and is it yours?
-    const ref = adminDb.collection("listings").doc(req.params.id);
-    const current = await ref.get();
-    if (!current.exists) {
-      return res.status(404).json({ error: "This listing doesn't exist anymore. It may have been deleted." }); // 404 Not Found
-    }
-    if (current.data().ownerId !== req.user.uid) {
-      return res.status(403).json({ error: "You can only change your own listings." }); // 403 Forbidden
-    }
+    // A TRANSACTION, like in orders.js: we read the listing AND its orders, and save only if
+    // nothing changed in between (so a buyer can't order at the same moment the price changes).
+    // It gives back { status, error } when something is wrong, or { status: 200, listing }.
+    const result = await adminDb.runTransaction(async (transaction) => {
+      // 1. Does the listing exist, and is it yours?
+      const ref = adminDb.collection("listings").doc(req.params.id);
+      const current = await transaction.get(ref);
+      if (!current.exists) {
+        return { status: 404, error: "This listing doesn't exist anymore. It may have been deleted." }; // 404 Not Found
+      }
+      if (current.data().ownerId !== req.user.uid) {
+        return { status: 403, error: "You can only change your own listings." }; // 403 Forbidden
+      }
 
-    // 2. Check the data
-    const changes = pickFields(req.body || {});
-    if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ error: "Nothing to change. Send at least one field, like status." }); // 400
-    }
-    const problems = findProblems(changes);
-    if (problems.length > 0) {
-      return res.status(400).json({ error: problems.join(" ") }); // 400 Bad Request
-    }
+      // 2. Check the data
+      const changes = pickFields(req.body || {});
+      if (Object.keys(changes).length === 0) {
+        return { status: 400, error: "Nothing to change. Send at least one field, like status." }; // 400
+      }
+      const problems = findProblems(changes);
+      if (problems.length > 0) {
+        return { status: 400, error: problems.join(" ") }; // 400 Bad Request
+      }
 
-    // 3. Use the database: save only the changed fields
-    await ref.update(changes);
-    const updated = await ref.get();
+      // 3. The lock: if buyers have open orders, the crop, price and town can't change.
+      //    (Kilos, harvest date, contact number, notes and status can still change.)
+      const orders = await transaction.get(adminDb.collection("orders").where("listingId", "==", req.params.id));
+      const open = countOpenOrders(orders.docs);
+      if (open.pending + open.accepted > 0) {
+        for (const field of LOCKED_FIELDS) {
+          if (field in changes && changes[field] !== current.data()[field]) {
+            // 409 Conflict: the change clashes with orders that buyers already sent
+            return {
+              status: 409,
+              error: `This listing has ${describeOrders(open)}, so its crop, price and town are locked. You can still change the kilos, harvest date, contact number and notes.`,
+            };
+          }
+        }
+      }
 
-    // 4. Answer: 200 OK, with the whole updated listing
-    res.status(200).json(toJson(updated));
+      // 4. Use the database: save only the changed fields
+      transaction.update(ref, changes);
+      const updated = toJson(current);
+      for (const field in changes) updated[field] = changes[field];
+      return { status: 200, listing: updated };
+    });
+
+    // 5. Answer
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error }); // 400, 403, 404 or 409
+    }
+    res.status(200).json(result.listing); // 200 OK, with the updated listing
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "We couldn't save your changes. Please try again." }); // 500
@@ -186,21 +249,38 @@ router.patch("/:id", requireLogin, async (req, res) => {
 // ---- DELETE /api/listings/:id: remove a listing (the owner only) ----
 router.delete("/:id", requireLogin, async (req, res) => {
   try {
-    // 1. Does the listing exist, and is it yours?
-    const ref = adminDb.collection("listings").doc(req.params.id);
-    const current = await ref.get();
-    if (!current.exists) {
-      return res.status(404).json({ error: "This listing doesn't exist anymore. It may have been deleted." }); // 404
-    }
-    if (current.data().ownerId !== req.user.uid) {
-      return res.status(403).json({ error: "You can only delete your own listings." }); // 403 Forbidden
-    }
+    // A transaction again: read the listing and its orders, then delete only if it's allowed
+    const result = await adminDb.runTransaction(async (transaction) => {
+      // 1. Does the listing exist, and is it yours?
+      const ref = adminDb.collection("listings").doc(req.params.id);
+      const current = await transaction.get(ref);
+      if (!current.exists) {
+        return { status: 404, error: "This listing doesn't exist anymore. It may have been deleted." }; // 404
+      }
+      if (current.data().ownerId !== req.user.uid) {
+        return { status: 403, error: "You can only delete your own listings." }; // 403 Forbidden
+      }
 
-    // 2. Use the database: delete it
-    await ref.delete();
+      // 2. The lock: a listing with waiting or accepted orders can't be deleted
+      const orders = await transaction.get(adminDb.collection("orders").where("listingId", "==", req.params.id));
+      const open = countOpenOrders(orders.docs);
+      if (open.pending + open.accepted > 0) {
+        return {
+          status: 409, // 409 Conflict
+          error: `You can't delete this listing yet: it has ${describeOrders(open)}. Accept or decline the waiting orders, and mark the accepted ones as completed first. You can mark it as sold to hide it from the Marketplace.`,
+        };
+      }
 
-    // 3. Answer: 200 OK
-    res.status(200).json({ message: "Listing deleted." });
+      // 3. Use the database: delete it. Old orders keep their own copy of the crop and price.
+      transaction.delete(ref);
+      return { status: 200 };
+    });
+
+    // 4. Answer
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error }); // 403, 404 or 409
+    }
+    res.status(200).json({ message: "Listing deleted." }); // 200 OK
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "We couldn't delete your listing. Please try again." }); // 500

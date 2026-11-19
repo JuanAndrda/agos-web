@@ -165,13 +165,17 @@ router.get("/received", requireLogin, requireFarmer, async (req, res) => {
 });
 
 // ---- PATCH /api/orders/:id: change an order's status ----
-// React sends { status: "accepted" }, "declined" (the farmer) or "cancelled" (the buyer).
-// Only a "pending" order can change. Declined and cancelled orders put the kilos back.
+// React sends { status: "..." }. The allowed changes (like steps in a story):
+//   pending  -> accepted   (the farmer agrees)
+//   pending  -> declined   (the farmer says no)          -> the kilos go back to the listing
+//   pending  -> cancelled  (the buyer changes their mind) -> the kilos go back to the listing
+//   accepted -> completed  (the farmer: the buyer picked up and paid; the deal is done)
+// An accepted order can't be declined or cancelled anymore: both sides must honor the deal.
 router.patch("/:id", requireLogin, async (req, res) => {
   // 1. Check the data
   const status = req.body && req.body.status;
-  if (!["accepted", "declined", "cancelled"].includes(status)) {
-    return res.status(400).json({ error: 'Status must be "accepted", "declined" or "cancelled".' }); // 400
+  if (!["accepted", "declined", "cancelled", "completed"].includes(status)) {
+    return res.status(400).json({ error: 'Status must be "accepted", "declined", "cancelled" or "completed".' }); // 400
   }
 
   try {
@@ -193,11 +197,21 @@ router.patch("/:id", requireLogin, async (req, res) => {
         return { status: 403, error: "Only the buyer can cancel this order." }; // 403 Forbidden
       }
       if (status !== "cancelled" && !isFarmer) {
-        return { status: 403, error: "Only the farmer who sells this crop can accept or decline the order." };
+        return { status: 403, error: "Only the farmer who sells this crop can accept, decline or complete the order." };
       }
-      if (data.status !== "pending") {
+
+      // 2c. CHECK that this step is allowed from the order's current status
+      if (status === "completed" && data.status !== "accepted") {
+        // 409 Conflict: only an accepted order can be completed
+        return { status: 409, error: `Only an accepted order can be marked as completed. This one is ${data.status}.` };
+      }
+      if (status !== "completed" && data.status !== "pending") {
         // 409 Conflict: the order already changed, so this change doesn't fit anymore
-        return { status: 409, error: `This order is already ${data.status}, so it can't change now.` };
+        let message = `This order is already ${data.status}, so it can't change now.`;
+        if (data.status === "accepted") {
+          message = "This order is already accepted, so it can't be declined or cancelled. The farmer and the buyer agreed on it.";
+        }
+        return { status: 409, error: message };
       }
 
       // Declined and cancelled orders give the kilos back, so we read the listing too
@@ -206,7 +220,7 @@ router.patch("/:id", requireLogin, async (req, res) => {
       let listing = null;
       if (putBack) listing = await transaction.get(listingRef);
 
-      // 2c. WRITE: the new status, and the kilos go back to the listing
+      // 2d. WRITE: the new status, and the kilos go back to the listing
       transaction.update(orderRef, { status: status });
       if (listing && listing.exists) {
         const stock = listing.data();

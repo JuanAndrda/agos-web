@@ -16,6 +16,7 @@ const STATUS_TEXT = {
   accepted: "Accepted",
   declined: "Declined",
   cancelled: "Cancelled",
+  completed: "Completed",
 };
 
 // "2026-11-17T12:30:00.000Z" -> "Nov 17, 2026"
@@ -106,7 +107,7 @@ function Orders({ user }) {
         <h1>Orders</h1>
         <p>
           {isFarmer
-            ? "Order requests from buyers for your crops. Accept or decline each one."
+            ? "Order requests from buyers for your crops. Accept or decline each one, then mark it completed after pickup."
             : "Your order requests. The farmer accepts or declines each one."}
         </p>
       </div>
@@ -171,6 +172,18 @@ function Orders({ user }) {
                             Decline
                           </button>
                         </>
+                      )}
+                      {/* An accepted order can't be declined anymore. When the buyer has picked up and paid,
+                          the farmer marks it completed. That also unlocks the listing. */}
+                      {order.status === "accepted" && (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={busyId === order.id}
+                          onClick={() => changeStatus(order, "completed", `The ${order.crop} order is completed. Thank you!`)}
+                        >
+                          Mark as completed
+                        </button>
                       )}
                     </OrderRow>
                   ))}

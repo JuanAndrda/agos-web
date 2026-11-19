@@ -50,7 +50,9 @@ function checkForm(form) {
   return errors;
 }
 
-function ListingForm({ initialValues, onSave, onCancel, saveText }) {
+// "locked" is true when buyers have waiting or accepted orders on this listing (from My Listings).
+// Then the crop, price and town boxes are turned off, because the server won't allow changing them.
+function ListingForm({ initialValues, onSave, onCancel, saveText, locked }) {
   const editing = Boolean(initialValues);
   const [form, setForm] = useState({ ...EMPTY_FORM, ...initialValues });
   const [errors, setErrors] = useState({});
@@ -153,6 +155,12 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
     <form id="listing-form" className="card listing-form" onSubmit={handleSubmit} noValidate>
       <h2>{editing ? `Edit your ${initialValues.crop} listing` : "Post a crop"}</h2>
 
+      {locked && (
+        <p className="lock-note">
+          🔒 Buyers have open orders on this listing, so the crop, price and town are locked. You can still
+          change the kilos, harvest date, contact number, notes and status.
+        </p>
+      )}
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">
           Please fix the fields marked below.
@@ -172,6 +180,7 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
             name="crop"
             value={form.crop}
             onChange={handleChange}
+            disabled={locked}
             aria-invalid={Boolean(errors.crop)}
             aria-describedby={errors.crop ? "crop-error" : undefined}
           >
@@ -196,6 +205,7 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
             name="town"
             value={form.town}
             onChange={handleChange}
+            disabled={locked}
             aria-invalid={Boolean(errors.town)}
             aria-describedby={errors.town ? "town-error" : undefined}
           >
@@ -235,6 +245,7 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
             inputMode="decimal"
             value={form.pricePerKg}
             onChange={handleChange}
+            disabled={locked}
             aria-invalid={Boolean(errors.pricePerKg)}
             aria-describedby={errors.pricePerKg ? "pricePerKg-error" : "pricePerKg-help"}
           />
@@ -246,7 +257,7 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
                   PSA farmgate price for {form.crop}: <strong>₱{formatPeso(suggestion.pricePerKg)}/kg</strong>{" "}
                   <span className="muted">({suggestion.month})</span>
                 </p>
-                <button type="button" className="btn btn-secondary btn-small" onClick={applySuggestedPrice}>
+                <button type="button" className="btn btn-secondary btn-small" onClick={applySuggestedPrice} disabled={locked}>
                   Use this price
                 </button>
               </div>

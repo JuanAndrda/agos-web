@@ -525,3 +525,26 @@ Juan's idea: farmers never upload a photo, because we already have a photo of ev
 - If Wikipedia is down or has no photo, the card or preview simply has no picture. Nothing breaks.
 - Nothing new is saved in Firestore: the photo is looked up from the crop name every time.
 
+### Order rules: protecting the buyer (Nov 19)
+Juan's rule: once a buyer sends an order request, and especially once the farmer accepts it, the farmer can't change the deal or delete the listing.
+
+**An order is "open" while it is `pending` (waiting) or `accepted`.** While a listing has open orders, it is **locked**:
+| What the farmer tries | Allowed? | Server answer |
+|---|---|---|
+| Delete the listing | No | **409 Conflict** "You can't delete this listing yet: it has 1 order waiting and 1 accepted..." |
+| Change the crop, price or town | No | **409 Conflict** "...its crop, price and town are locked." |
+| Change kilos, harvest date, contact number, notes, or mark as sold | Yes | 200 OK |
+
+**The order's steps (`PATCH /api/orders/:id`):**
+- `pending` → `accepted` or `declined` (the farmer), or `cancelled` (the buyer). Declined and cancelled give the kilos back.
+- `accepted` → `completed` (the farmer, after pickup and payment). **New.** This ends the deal and unlocks the listing.
+- An `accepted` order can't be declined or cancelled anymore (**409**). Both sides must honor it.
+
+**How it's built:**
+- `server/listings.js`: `countOpenOrders()` counts the pending and accepted orders of a listing. PATCH and DELETE now run in a **transaction** (like the orders): they read the listing **and** its orders, check the lock, then write. So a buyer can't order at the same moment the farmer changes the price. `LOCKED_FIELDS` = crop, pricePerKg, town. A locked field that is sent **unchanged** is fine, so the edit form still works.
+- `GET /api/listings/mine` now adds `pendingOrders` and `acceptedOrders` to each listing, so the website can show the lock.
+- `server/orders.js`: the new `completed` status, with its own 409 checks.
+- `pages/MyListings.js`: a 🔒 note on locked cards ("1 order waiting. 1 accepted..."), and the Delete button is turned off. `components/ListingForm.js` gets `locked`, which turns off the Crop, Town and Price boxes and the "Use this price" button.
+- `pages/Orders.js`: a **Mark as completed** button on accepted orders (farmer), and the status "Completed".
+- **Old orders are safe even after a delete:** every order keeps its own copy of the crop, kilos, price, total, town and farmer contact, so it still shows correctly.
+

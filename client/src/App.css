@@ -1473,6 +1473,10 @@ a.summary-box:hover {
   background: var(--leaf-soft);
   color: var(--leaf-dark);
 }
+.order-completed {
+  background: var(--leaf);
+  color: #fff;
+}
 .order-declined,
 .order-cancelled {
   background: #eeeee9;
@@ -1645,4 +1649,22 @@ a.summary-box:hover {
   .price-card-more {
     display: none; /* the whole card is the link, so we save room on a phone */
   }
+}
+
+/* The lock message on a listing with open orders (My Listings and the edit form) */
+.lock-note {
+  flex-basis: 100%;
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--harvest-soft);
+  color: var(--harvest-ink);
+  font-size: 0.85rem;
+}
+/* Locked (disabled) boxes look grey, so it's clear they can't be changed */
+input:disabled,
+select:disabled {
+  background: #f0f0ec;
+  color: var(--muted);
+  cursor: not-allowed;
 }

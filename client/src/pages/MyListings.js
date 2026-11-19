@@ -148,6 +148,8 @@ function MyListings() {
           key={formMode === "add" ? "add" : formMode.id}
           initialValues={formMode === "add" ? undefined : formMode}
           saveText={formMode === "add" ? "Post listing" : "Save changes"}
+          // Locked = buyers have waiting or accepted orders on it, so crop, price and town can't change
+          locked={formMode !== "add" && formMode.pendingOrders + formMode.acceptedOrders > 0}
           onSave={handleSave}
           onCancel={() => setFormMode(null)}
         />
@@ -169,8 +171,17 @@ function MyListings() {
         <div className="listing-grid">
           {listings.map((listing) => {
             const busy = busyId === listing.id;
+            // The server tells us how many orders are still open on this listing (GET /api/listings/mine)
+            const openOrders = listing.pendingOrders + listing.acceptedOrders;
             return (
               <ListingCard key={listing.id} listing={listing} photo={photos[listing.crop]} showFarmer={false}>
+                {openOrders > 0 && (
+                  <p className="lock-note">
+                    🔒 {listing.pendingOrders > 0 && `${listing.pendingOrders} order${listing.pendingOrders === 1 ? "" : "s"} waiting. `}
+                    {listing.acceptedOrders > 0 && `${listing.acceptedOrders} accepted. `}
+                    The crop, price and town are locked, and it can't be deleted until the orders are finished.
+                  </p>
+                )}
                 <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => openForm(listing)}>
                   Edit
                 </button>
@@ -179,7 +190,14 @@ function MyListings() {
                     Mark as sold
                   </button>
                 )}
-                <button type="button" className="btn btn-danger" disabled={busy} onClick={() => handleDelete(listing)}>
+                {/* The server also says no (409), but we turn the button off so the farmer sees why first */}
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={busy || openOrders > 0}
+                  title={openOrders > 0 ? "This listing has open orders, so it can't be deleted yet." : undefined}
+                  onClick={() => handleDelete(listing)}
+                >
                   Delete
                 </button>
               </ListingCard>
