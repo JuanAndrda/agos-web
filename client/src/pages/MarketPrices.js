@@ -13,6 +13,7 @@ import { CROPS, formatPeso } from "../constants";
 function MarketPrices() {
   const [prices, setPrices] = useState([]);
   const [checkedAt, setCheckedAt] = useState(null); // when our server last asked PSA
+  const [stale, setStale] = useState(false); // true = PSA isn't answering, these are older prices
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState(""); // what is typed in the box
@@ -33,6 +34,7 @@ function MarketPrices() {
       const data = await getPrices(text); // GET /api/prices?search=text
       setPrices(data.prices);
       setCheckedAt(data.checkedAt);
+      setStale(data.stale);
       setSearched(text);
     } catch (err) {
       console.error(err);
@@ -111,6 +113,13 @@ function MarketPrices() {
               <small>{searched ? `matching "${searched}"` : "all crops PSA tracks"}</small>
             </div>
           </div>
+
+          {/* Our server couldn't reach PSA, so it sent the last prices it got (see server/index.js) */}
+          {stale && (
+            <p className="warning-box" role="status">
+              PSA isn't answering right now, so these are the prices we got from PSA earlier. They may be a few hours old.
+            </p>
+          )}
 
           <p className="result-note small">
             {searched && (

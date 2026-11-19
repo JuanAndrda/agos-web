@@ -5,11 +5,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // users: anyone logged in can read a profile (to show names);
-    // you can only write your OWN profile
+    // users: anyone logged in can read a profile (to show names).
+    // You can make your OWN profile once, as a farmer or a buyer (Register.js does this).
+    // After that you can't change your role: a buyer can't turn themself into a farmer.
+    // "request.resource.data" = the data being saved, "resource.data" = the data already saved.
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId
+                    && request.resource.data.role in ['farmer', 'buyer'];
+      allow update: if request.auth != null && request.auth.uid == userId
+                    && request.resource.data.role == resource.data.role;
     }
 
     // listings: since Nov 15, only our Express server reads and writes listings.

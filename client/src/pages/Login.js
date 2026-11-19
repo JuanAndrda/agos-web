@@ -1,7 +1,7 @@
 // Login.js: the log-in page. It checks the form, calls login() from authService,
 // and shows a friendly message if Firebase says no.
 import { useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import AuthPanel from "../components/AuthPanel";
 import { login, friendlyAuthError } from "../services/authService";
 
@@ -11,14 +11,18 @@ function Login({ user }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // If ProtectedRoute sent us here from a page (like /crops/Tomato), it saved that page in
+  // location.state.from, so we can go back there after login. Otherwise we go to /prices.
+  const location = useLocation();
+  const goTo = location.state && location.state.from ? location.state.from : "/prices";
 
   // The name in the browser tab
   useEffect(() => {
     document.title = "Log in · AgosUgnayan Web";
   }, []);
 
-  // Already logged in? Go to the prices. (This also runs right after a successful login.)
-  if (user) return <Navigate to="/prices" replace />;
+  // Already logged in? Go to the page you wanted, or the prices. (This also runs right after a successful login.)
+  if (user) return <Navigate to={goTo} replace />;
 
   async function handleSubmit(event) {
     event.preventDefault(); // stop the browser from reloading the page
@@ -34,7 +38,7 @@ function Login({ user }) {
     setSaving(true);
     try {
       await login(email.trim(), password);
-      // AuthContext now gets the user, and the check above sends us to /prices
+      // App.js now gets the user from Firebase, and the check above sends us on
     } catch (err) {
       setError(friendlyAuthError(err));
       setSaving(false);

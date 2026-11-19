@@ -1,6 +1,7 @@
 // App.js: the top of our app. It has two jobs:
 // 1. It remembers WHO is logged in (user) and WHAT is in the buyer's cart (cart) with useState,
 //    and passes them down to the pages as PROPS, like <Marketplace user={user} />.
+//    The cart is also saved in the browser (localStorage), so a page reload doesn't empty it.
 // 2. The routes: it decides which page shows for each URL, like the React lesson.
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -20,11 +21,26 @@ import MyListings from "./pages/MyListings";
 import Cart from "./pages/Cart";
 import Orders from "./pages/Orders";
 
+// The cart is saved in the browser's localStorage, one cart per person: "agos-cart-<their uid>".
+// localStorage only keeps text, so we save the cart as JSON text and read it back with JSON.parse.
+function cartKey(uid) {
+  return "agos-cart-" + uid;
+}
+
+function loadSavedCart(uid) {
+  try {
+    const saved = localStorage.getItem(cartKey(uid));
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return []; // the browser blocked localStorage, or the saved text is broken: start empty
+  }
+}
+
 function App() {
   const [user, setUser] = useState(null); // null = nobody is logged in. Else { uid, email, name, role }
   const [checkingLogin, setCheckingLogin] = useState(true); // true until Firebase tells us who it is
   // The buyer's cart. Each item: { listing: { id, crop, pricePerKg, ... }, quantityKg: 5 }
-  // It lives only here in React state: it is empty again after a page reload or log out.
+  // It lives here in React state, and a copy is saved in localStorage (see the useEffect below).
   const [cart, setCart] = useState([]);
 
   // Reads the person's name and role from Firestore and saves the user in state
@@ -52,12 +68,23 @@ function App() {
   useEffect(() => {
     if (!firebaseReady) return;
     const stopListening = onAuthStateChanged(auth, async (firebaseUser) => {
-      setCart([]); // a different person (or nobody) is logged in now: start with an empty cart
+      // A different person (or nobody) is logged in now: load THEIR saved cart, or an empty one
+      setCart(firebaseUser ? loadSavedCart(firebaseUser.uid) : []);
       await loadUser(firebaseUser);
       setCheckingLogin(false);
     });
     return stopListening; // stop listening when the app closes
   }, []);
+
+  // Every time the cart changes, save a copy in the browser ([cart, user] = run when either changes)
+  useEffect(() => {
+    if (!user) return; // nobody is logged in, so there is no cart to save
+    try {
+      localStorage.setItem(cartKey(user.uid), JSON.stringify(cart));
+    } catch {
+      // the browser blocked localStorage (like some private windows): the cart still works until a reload
+    }
+  }, [cart, user]);
 
   // Register uses this: the name and role are saved a moment AFTER Firebase logs the new
   // person in, so we read the profile again.

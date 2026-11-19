@@ -1,6 +1,7 @@
 // index.js: our Express server. It has three jobs:
 // 1. Prices: React asks this server, this server asks PSA, cleans the answer, remembers it
-//    for one hour, and sends back only what the page needs.
+//    for one hour, and sends back only what the page needs. If PSA is down later, we send the
+//    last prices we got instead of an error.
 // 2. Listings: React sends every listing request here, and listings.js checks it and
 //    talks to Firestore.
 // 3. Orders: the cart's checkout and the order requests (orders.js).
@@ -18,13 +19,43 @@ app.use(express.json()); // lets the server read the JSON that React sends with 
 // ---- The cache: we keep PSA's prices for one hour so pages load fast ----
 const ONE_HOUR = 60 * 60 * 1000;
 let cache = { prices: null, savedAt: 0 };
+// The trip to PSA that is on its way right now (null when there is none). If 3 people open the
+// app at the same moment, they all wait for this ONE trip instead of sending 3 trips to PSA.
+let psaTrip = null;
+// When PSA last failed. For 5 minutes after a failure we don't make people wait for PSA again.
+const FIVE_MINUTES = 5 * 60 * 1000;
+let lastFailedAt = 0;
 
+// Gives back { prices, savedAt, stale }. "stale: true" means PSA didn't answer, so these are
+// the older prices from our last successful trip.
 async function getPrices() {
-  // Only call PSA if we have no prices yet, or they are older than one hour
-  if (!cache.prices || Date.now() - cache.savedAt > ONE_HOUR) {
-    cache = { prices: await fetchPsaPrices(), savedAt: Date.now() };
+  // 1. Fresh enough (less than one hour old)? Use the cache, no trip to PSA.
+  if (cache.prices && Date.now() - cache.savedAt <= ONE_HOUR) {
+    return { prices: cache.prices, savedAt: cache.savedAt, stale: false };
   }
-  return cache;
+
+  // 2. PSA failed less than 5 minutes ago and we have older prices: send those right away
+  if (cache.prices && Date.now() - lastFailedAt < FIVE_MINUTES) {
+    return { prices: cache.prices, savedAt: cache.savedAt, stale: true };
+  }
+
+  // 3. Too old, or no prices yet: ask PSA (or join the trip that is already on its way)
+  try {
+    if (!psaTrip) psaTrip = fetchPsaPrices();
+    const prices = await psaTrip;
+    cache = { prices: prices, savedAt: Date.now() };
+    return { prices: cache.prices, savedAt: cache.savedAt, stale: false };
+  } catch (error) {
+    // 4. PSA failed. If we still have older prices, send those instead of an error.
+    lastFailedAt = Date.now();
+    if (cache.prices) {
+      console.error("PSA didn't answer, so we send the prices from our last trip:", error.message);
+      return { prices: cache.prices, savedAt: cache.savedAt, stale: true };
+    }
+    throw error; // no prices at all: the route answers 502
+  } finally {
+    psaTrip = null; // the trip is over (it worked or it failed), so the next one can start
+  }
 }
 
 // From all months, keep only the newest price of each crop
@@ -65,6 +96,7 @@ app.get("/api/prices", async (req, res) => {
     source: "PSA OpenSTAT",
     area: "Iloilo Province",
     checkedAt: new Date(data.savedAt).toISOString(), // when our server last asked PSA
+    stale: data.stale, // true = PSA didn't answer, these are older prices
     count: prices.length,
     prices,
   });
@@ -96,6 +128,7 @@ app.get("/api/prices/:crop", async (req, res) => {
     source: "PSA OpenSTAT",
     area: "Iloilo Province",
     checkedAt: new Date(data.savedAt).toISOString(),
+    stale: data.stale,
     crop: crop.name,
     history,
   });
@@ -131,4 +164,9 @@ app.listen(PORT, (error) => {
     process.exit(1);
   }
   console.log(`Server running at http://localhost:${PORT}`);
+
+  // Get PSA's prices now, while nobody is waiting, so the first page that needs them is instant
+  getPrices()
+    .then(() => console.log("PSA prices are ready."))
+    .catch((err) => console.error("PSA didn't answer yet. We'll try again when a page asks:", err.message));
 });

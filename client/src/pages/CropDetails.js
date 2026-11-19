@@ -31,6 +31,7 @@ function CropDetails() {
   const [history, setHistory] = useState([]);
   const [pricesLoading, setPricesLoading] = useState(true);
   const [pricesError, setPricesError] = useState("");
+  const [stale, setStale] = useState(false); // true = PSA isn't answering, these are older prices
 
   // API 1: Wikipedia (photo and description). Plain async function with try / catch / finally.
   async function loadInfo() {
@@ -53,6 +54,7 @@ function CropDetails() {
     try {
       const data = await getPriceHistory(cropName); // GET /api/prices/<cropName>
       setHistory(data.history.slice(0, 12)); // the newest 12 months
+      setStale(data.stale);
     } catch (err) {
       console.error(err);
       setPricesError(err.message);
@@ -138,6 +140,11 @@ function CropDetails() {
           )}
           {!pricesLoading && !pricesError && latest && (
             <>
+              {stale && (
+                <p className="warning-box" role="status">
+                  PSA isn't answering right now, so these are the prices we got from PSA earlier.
+                </p>
+              )}
               {/* 3 boxes: the newest price, the month before, and the difference */}
               <div className="price-summary">
                 <div className="summary-box">

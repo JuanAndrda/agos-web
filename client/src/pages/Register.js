@@ -38,6 +38,16 @@ function Register({ user, refreshUser }) {
     return problems;
   }
 
+  // The person is fixing this field, so its old error message goes away
+  // (copy the errors, remove this field's message, save the copy)
+  function clearError(field) {
+    if (errors[field]) {
+      const otherErrors = { ...errors };
+      delete otherErrors[field];
+      setErrors(otherErrors);
+    }
+  }
+
   // Shows the message under a field when it has a problem
   function fieldError(field) {
     return errors[field] ? (
@@ -96,7 +106,10 @@ function Register({ user, refreshUser }) {
               autoComplete="name"
               maxLength={60}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                clearError("name");
+              }}
               aria-invalid={Boolean(errors.name)}
               aria-describedby={errors.name ? "name-error" : undefined}
             />
@@ -109,7 +122,10 @@ function Register({ user, refreshUser }) {
               type="email"
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                clearError("email");
+              }}
               aria-invalid={Boolean(errors.email)}
               aria-describedby={errors.email ? "email-error" : undefined}
             />
@@ -124,7 +140,10 @@ function Register({ user, refreshUser }) {
               aria-invalid={Boolean(errors.password)}
               aria-describedby={errors.password ? "password-error" : "password-help"}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                clearError("password");
+              }}
             />
             {fieldError("password") || (
               <p id="password-help" className="help">
@@ -145,7 +164,10 @@ function Register({ user, refreshUser }) {
                 name="role"
                 value="farmer"
                 checked={role === "farmer"}
-                onChange={(e) => setRole(e.target.value)}
+                onChange={(e) => {
+                  setRole(e.target.value);
+                  clearError("role");
+                }}
               />
               <span>
                 <strong>Farmer</strong>
@@ -158,7 +180,10 @@ function Register({ user, refreshUser }) {
                 name="role"
                 value="buyer"
                 checked={role === "buyer"}
-                onChange={(e) => setRole(e.target.value)}
+                onChange={(e) => {
+                  setRole(e.target.value);
+                  clearError("role");
+                }}
               />
               <span>
                 <strong>Buyer</strong>

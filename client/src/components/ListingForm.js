@@ -98,11 +98,21 @@ function ListingForm({ initialValues, onSave, onCancel, saveText, locked }) {
   function handleChange(event) {
     const { name, value } = event.target;
     setForm({ ...form, [name]: value });
+    // The person is fixing this field, so its old error message goes away
+    // (copy the errors, remove this field's message, save the copy)
+    if (errors[name]) {
+      const otherErrors = { ...errors };
+      delete otherErrors[name];
+      setErrors(otherErrors);
+    }
   }
 
   // "Use this price" copies PSA's price into the price box. The farmer can still change it.
   function applySuggestedPrice() {
     setForm({ ...form, pricePerKg: String(suggestion.pricePerKg) });
+    const otherErrors = { ...errors };
+    delete otherErrors.pricePerKg; // the price is fine now
+    setErrors(otherErrors);
   }
 
   // The PSA price of the crop the farmer chose (or undefined if no crop or no prices yet)
@@ -247,25 +257,28 @@ function ListingForm({ initialValues, onSave, onCancel, saveText, locked }) {
             onChange={handleChange}
             disabled={locked}
             aria-invalid={Boolean(errors.pricePerKg)}
-            aria-describedby={errors.pricePerKg ? "pricePerKg-error" : "pricePerKg-help"}
+            aria-describedby={errors.pricePerKg ? "pricePerKg-error pricePerKg-help" : "pricePerKg-help"}
           />
-          {fieldError("pricePerKg") ||
-            (suggestion ? (
-              // The suggested price box: PSA's farmgate price for this crop, and a button to use it
-              <div id="pricePerKg-help" className="price-suggestion">
-                <p>
-                  PSA farmgate price for {form.crop}: <strong>₱{formatPeso(suggestion.pricePerKg)}/kg</strong>{" "}
-                  <span className="muted">({suggestion.month})</span>
-                </p>
-                <button type="button" className="btn btn-secondary btn-small" onClick={applySuggestedPrice} disabled={locked}>
-                  Use this price
-                </button>
-              </div>
-            ) : (
+          {fieldError("pricePerKg")}
+          {/* PSA's price shows even when the price box has an error, because it helps fix it */}
+          {suggestion ? (
+            // The suggested price box: PSA's farmgate price for this crop, and a button to use it
+            <div id="pricePerKg-help" className="price-suggestion">
+              <p>
+                PSA farmgate price for {form.crop}: <strong>₱{formatPeso(suggestion.pricePerKg)}/kg</strong>{" "}
+                <span className="muted">({suggestion.month})</span>
+              </p>
+              <button type="button" className="btn btn-secondary btn-small" onClick={applySuggestedPrice} disabled={locked}>
+                Use this price
+              </button>
+            </div>
+          ) : (
+            !errors.pricePerKg && (
               <p id="pricePerKg-help" className="help">
                 {form.crop ? "PSA's price for this crop isn't available right now." : "Choose a crop to see PSA's farmgate price."}
               </p>
-            ))}
+            )
+          )}
         </div>
 
         <div className="field">

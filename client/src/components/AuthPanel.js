@@ -13,7 +13,7 @@ function AuthPanel() {
       <ul>
         <li>Monthly farmgate prices from PSA</li>
         <li>Crops for sale, straight from the farm</li>
-        <li>Call or text the farmer directly</li>
+        <li>Order straight from the farmer</li>
       </ul>
     </aside>
   );

@@ -13,8 +13,8 @@ import ErrorMessage from "../components/ErrorMessage";
 // The 3 steps in "How it works"
 const STEPS = [
   { title: "Check the price", text: "See PSA's farmgate price per kg, so you know what is fair." },
-  { title: "Find a crop near you", text: "Search the Marketplace by crop, town and price." },
-  { title: "Call the farmer", text: "Tap the number on a listing to call or text the farmer." },
+  { title: "Find a crop and order", text: "Search the Marketplace by crop, town and price, then add it to your cart." },
+  { title: "The farmer accepts", text: "The farmer accepts your order request. Then you agree on pickup and payment by phone." },
 ];
 
 // user is a prop from App.js: null when nobody is logged in
@@ -97,7 +97,7 @@ function Home({ user }) {
             </p>
             <p>
               <strong>Free</strong>
-              <span>call the farmer directly</span>
+              <span>order straight from the farmer</span>
             </p>
           </div>
         </div>

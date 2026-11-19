@@ -105,10 +105,10 @@ The server's ID card: its name, its packages (`express`, `cors`, `firebase-admin
 
 ### `server/index.js`: our API
 - `app.use(cors())` lets a page from another port call our server.
-- **The cache:** `getPrices()` only calls PSA if we have nothing yet or the prices are older than one hour. This makes pages fast and doesn't overload PSA.
+- **The cache:** `getPrices()` only calls PSA if we have nothing yet or the prices are older than one hour. This makes pages fast and doesn't overload PSA. Since Nov 19 (section 16) it also loads the prices when the server starts, lets people who ask at the same moment share one trip to PSA, and sends the older prices with `stale: true` when PSA fails.
 - **Endpoint 1, `GET /api/prices?search=tomato`:** the newest price of each crop. It checks the search text (more than 50 characters gives **400**), gets the prices, filters them, and sends `{ source, area, checkedAt, count, prices }`.
 - **Endpoint 2, `GET /api/prices/:crop`:** every month's price of one crop, newest first, for the Crop Details page. An unknown crop gives **404**.
-- If PSA fails, both endpoints answer **502** with a clear message instead of crashing.
+- If PSA fails and we have no prices at all, both endpoints answer **502** with a clear message instead of crashing. If we have older prices, they answer **200** with those prices and `stale: true`.
 - `app.use(express.json())` lets the server read the JSON that React sends with POST and PATCH.
 - `app.use("/api/listings", listingsRouter)` plugs in the 5 listings endpoints from `listings.js`.
 - Any other address gives **404** JSON. If a route crashes, the last middleware answers **500**. If someone sends broken JSON, it answers **400** instead.
@@ -171,7 +171,7 @@ If `client/.env` is missing, App.js shows "Firebase keys are missing" and how to
 
 App.js also keeps the two things many pages need, with `useState`:
 - `user`: who is logged in (`{ uid, email, name, role }`, or `null`). `onAuthStateChanged` in a `useEffect` is like a doorbell: Firebase rings it when someone logs in or out, and `loadUser()` reads their name and role from Firestore. `checkingLogin` is `true` until Firebase answers, so pages don't flash the login screen. `refreshUser()` reads the profile again; Register needs it because the name and role are saved a moment after Firebase logs the new person in.
-- `cart`: the buyer's cart, a list like `[{ listing, quantityKg: 5 }]`. It empties when someone logs in or out, and on a page reload.
+- `cart`: the buyer's cart, a list like `[{ listing, quantityKg: 5 }]`. Since Nov 19 a copy is saved in the browser's `localStorage`, one cart per person, so a page reload keeps it. A different person logging in gets their own cart.
 
 They go down to the pages as **props**: `<Marketplace user={user} cart={cart} setCart={setCart} />`. A page that needs to change the cart gets `setCart` too.
 
@@ -241,7 +241,7 @@ Every page also sets the name in the browser tab, like "Market Prices · AgosUgn
 ## 5. `firestore.rules`: the database's guard
 Anyone can open the browser tools and try to change data directly, so Firestore checks every request against these rules **on Google's servers**. That makes them part of our server-side logic.
 - `request.auth` is the person asking.
-- **`users`:** logged-in people can read profiles (to show names), and people can only write their own profile.
+- **`users`:** logged-in people can read profiles (to show names). You can create only your own profile, once, as `farmer` or `buyer`, and you can never change your `role` after that (Nov 19). Before, a buyer could make themself a farmer by writing to Firestore directly.
 - **`orders` (Nov 17): `allow read, write: if false`**, the same as listings. Only `server/orders.js` uses orders.
 - **`listings`: `allow read, write: if false`**, which means nobody, from any browser. Since Nov 15 only our server uses listings, and Firebase Admin skips the rules. Blocking everyone else means nobody can skip our server's checks by calling Firestore directly. The checks that used to be here (farmers only, your own listings only, numbers above 0) now live in `server/auth.js` and `server/listings.js`.
 
@@ -283,7 +283,7 @@ The code follows the study guide. These are the places where it differs:
 3. **The 404 and 500 handlers** are in the server already (the guide had them in Week 4).
 4. **`constants.js`** is a new file with the crop and town lists for the dropdowns.
 5. **`firebaseReady`** shows a help message when `.env` is missing, instead of a blank page.
-6. **`refreshUser()`** in AuthContext makes sure a new account's role shows right away.
+6. **`refreshUser()`** in `App.js` (it was in AuthContext before Nov 19) makes sure a new account's role shows right away.
 7. **`NavLink`** instead of `Link` in the Navbar, so the open page is highlighted.
 8. **The edit form has a Status field**, so "Mark as sold" can be undone.
 9. **Wikipedia titles:** 6 crops are mapped (the guide had 3), the same as Agos.
@@ -455,7 +455,7 @@ Three new features, built on top of the redesign. Juan approved them on Nov 17, 
 ### Part 3: the cart (React)
 | File | What it does |
 |---|---|
-| `App.js` (since Nov 19; was `context/CartContext.js`) | Keeps the cart in React state (`const [cart, setCart] = useState([])`) and passes it to pages as props. The cart empties when someone else logs in. It isn't saved anywhere, so a page reload empties it too. |
+| `App.js` (since Nov 19; was `context/CartContext.js`) | Keeps the cart in React state (`const [cart, setCart] = useState([])`) and passes it to pages as props. The cart empties when someone else logs in. Since Nov 19 (section 16) a copy is saved in `localStorage`, so a reload keeps it. |
 | `components/AddToCart.js` | New. The "kilos + Add to cart" box on each Marketplace card. Checks: whole kilos, more than 0, and not more than what's left (it counts what's already in your cart). |
 | `pages/Cart.js` | New. Change kilos, remove, the total (`reduce()`), and **Send order request** → `POST /api/orders`. If the server says no (for example someone else bought first), its message is shown and the cart stays. |
 | `pages/Marketplace.js` | Buyers get `<AddToCart>` on each card. Farmers get no box, and their own listings say "This is your listing". |
@@ -547,4 +547,29 @@ Juan's rule: once a buyer sends an order request, and especially once the farmer
 - `pages/MyListings.js`: a 🔒 note on locked cards ("1 order waiting. 1 accepted..."), and the Delete button is turned off. `components/ListingForm.js` gets `locked`, which turns off the Crop, Town and Price boxes and the "Use this price" button.
 - `pages/Orders.js`: a **Mark as completed** button on accepted orders (farmer), and the status "Completed".
 - **Old orders are safe even after a delete:** every order keeps its own copy of the crop, kilos, price, total, town and farmer contact, so it still shows correctly.
+
+---
+
+## 16. Fixes after the full audit (Nov 19)
+
+We tested the whole app (114 checks at phone and laptop size) and fixed what the tests found. Juan approved groups A and B of the audit report. Nothing new was added; every change is a fix or small polish.
+
+| # | What was wrong | What we changed | File |
+|---|---|---|---|
+| A1 | A red error stayed under a field after you fixed it, and the PSA "Use this price" box hid behind the old price error. | `handleChange` (ListingForm) and `clearError` (Register) copy the `errors` object, `delete` that field's message, and save the copy. The PSA suggestion now shows even when the price box has an error. | `components/ListingForm.js`, `pages/Register.js` |
+| A2 | A buyer could change their own `role` to farmer by writing to Firestore directly. | The rules split `write` into `create` (only your own profile, role must be farmer or buyer) and `update` (the role must stay the same). There is no `delete`. **Publish the new rules in the Firebase Console.** | `firestore.rules` |
+| A3 | When PSA failed after the 1-hour cache ran out, the price pages showed an error even though the server still had older prices. | `getPrices()` sends the older prices with `stale: true`, and waits 5 minutes before trying PSA again, so nobody waits 30 seconds for a dead PSA. Market Prices and Crop Details show a yellow note: "PSA isn't answering right now...". | `server/index.js`, `pages/MarketPrices.js`, `pages/CropDetails.js`, `App.css` (`.warning-box`) |
+| A4 | An old comment in Login.js still said "AuthContext". | Fixed the comment. | `pages/Login.js` |
+| B1 | The cart emptied on a page reload. | `App.js` saves the cart in `localStorage` with a `useEffect` that runs when `[cart, user]` change, under the key `agos-cart-<uid>`. On login, `loadSavedCart(uid)` reads it back with `JSON.parse`. The server still checks the stock at checkout, so an old cart can't buy kilos that are gone (409). | `App.js` |
+| B2 | The first price page waited for PSA, and 3 people at once made 3 trips to PSA. | The server calls `getPrices()` right after it starts. `psaTrip` holds the trip that is on its way, so everyone who asks at the same moment waits for that one trip. | `server/index.js` |
+| B3 | After logging in you always landed on Market Prices, even if you had opened a crop's page. | `ProtectedRoute` sends the page you wanted to Login with `<Navigate ... state={{ from: location.pathname }} />`. Login reads it with `useLocation()` and goes back there. | `components/ProtectedRoute.js`, `pages/Login.js` |
+| B4 | On a phone the 5 Marketplace filters filled the whole first screen; on a laptop the Delete button wrapped onto its own line. | Phone: filters in 2 columns ([Town, Sort by], [Min, Max]) with CSS `order`. Laptop: listing cards are at least 280px wide. CSS only. | `App.css` |
+| B5 | Home still said "call the farmer directly", from before the cart. | New words: check the price, find a crop and order, the farmer accepts. | `pages/Home.js`, `components/AuthPanel.js` |
+
+**New words to know:**
+- **`localStorage`**: a small storage box in the browser for text. It stays after a reload. `setItem(key, text)` saves, `getItem(key)` reads. We turn the cart into text with `JSON.stringify` and back with `JSON.parse`.
+- **`location.state`**: extra information sent along when React Router changes the page. We use it to remember the page you wanted.
+- **Stale data**: older data shown on purpose when the fresh source is down. The page says so, so nobody is fooled.
+
+**Tested:** 65 API checks (including the new rules), 5 PSA cache checks (start-up load, one shared trip, stale fallback, 5-minute pause) and 54 browser checks at 390px and 1366px, all passing, on Firebase emulators with a fake PSA and Wikipedia. The real PSA and Wikipedia were checked separately from Juan's laptop browser.
 
