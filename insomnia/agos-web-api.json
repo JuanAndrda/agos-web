@@ -15,21 +15,34 @@
       "_type": "environment",
       "parentId": "wrk_agos",
       "name": "Base Environment",
-      "data": {}
-    },
-    {
-      "_id": "env_local",
-      "_type": "environment",
-      "parentId": "env_base",
-      "name": "Local (npm start)",
       "data": {
         "base_url": "http://localhost:5000",
         "firebase_api_key": "PASTE the REACT_APP_FIREBASE_API_KEY from client/.env",
-        "email": "PASTE a test account email",
-        "password": "PASTE its password",
-        "token": "PASTE the idToken from request 0 here",
-        "listing_id": "PASTE a listing id here",
-        "order_id": "PASTE an order id here"
+        "token": "{% response 'body', 'req_1', 'b64::JC5pZFRva2Vu::46b', 'always', 60 %}",
+        "listing_id": "{% response 'body', 'req_6', 'b64::JC5pZA==::46b', 'never', 60 %}",
+        "order_id": "{% response 'body', 'req_9', 'b64::JFswXS5pZA==::46b', 'never', 60 %}"
+      }
+    },
+    {
+      "_id": "env_farmer",
+      "_type": "environment",
+      "parentId": "env_base",
+      "name": "Farmer",
+      "metaSortKey": 1,
+      "data": {
+        "email": "PASTE a farmer account email",
+        "password": "PASTE its password"
+      }
+    },
+    {
+      "_id": "env_buyer",
+      "_type": "environment",
+      "parentId": "env_base",
+      "name": "Buyer",
+      "metaSortKey": 2,
+      "data": {
+        "email": "PASTE a buyer account email",
+        "password": "PASTE its password"
       }
     },
     {
@@ -73,7 +86,7 @@
           "value": "application/json"
         }
       ],
-      "description": "Firebase answers 200 OK with an idToken. Copy idToken into the 'token' variable (Manage Environments). It lasts 1 hour.",
+      "description": "Logs in with the email and password of the chosen environment (Farmer or Buyer). You don't need to copy the token: every other request runs this one first and uses its idToken by itself.",
       "metaSortKey": 1,
       "body": {
         "mimeType": "application/json",
@@ -155,7 +168,7 @@
           "value": "Bearer {{ _.token }}"
         }
       ],
-      "description": "201 Created. Change pricePerKg to 0 to see 400 Bad Request. Copy the id into listing_id.",
+      "description": "201 Created. Change pricePerKg to 0 to see 400 Bad Request. Copy the id into listing_id. The new id is saved in listing_id by itself.",
       "metaSortKey": 6,
       "body": {
         "mimeType": "application/json",
@@ -220,7 +233,7 @@
           "value": "Bearer {{ _.token }}"
         }
       ],
-      "description": "201 Created. Ask for more kilos than are left to see 409 Conflict. A farmer gets 403.",
+      "description": "201 Created. Ask for more kilos than are left to see 409 Conflict. A farmer gets 403. Switch to the Buyer environment first. The new order's id is saved in order_id by itself.",
       "metaSortKey": 9,
       "body": {
         "mimeType": "application/json",
@@ -278,7 +291,7 @@
           "value": "Bearer {{ _.token }}"
         }
       ],
-      "description": "Farmer: accepted or declined. Buyer: cancelled. 200 OK, then 409 Conflict if you send it again.",
+      "description": "Switch to the Farmer environment to accept or decline, or Buyer to cancel. Farmer: accepted or declined. Buyer: cancelled. 200 OK, then 409 Conflict if you send it again.",
       "metaSortKey": 12,
       "body": {
         "mimeType": "application/json",
