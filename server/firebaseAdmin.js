@@ -13,7 +13,17 @@ const KEY_FILE = new URL("./serviceAccountKey.json", import.meta.url);
 let adminAuth = null; // checks login tokens
 let adminDb = null; // reads and writes Firestore
 
-if (!existsSync(KEY_FILE)) {
+// When the app is online (Vercel) there is no key file. The key is pasted as a Vercel
+// environment variable called FIREBASE_SERVICE_ACCOUNT instead.
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
+    adminAuth = getAuth();
+    adminDb = getFirestore();
+  } catch (error) {
+    console.error("FIREBASE_SERVICE_ACCOUNT is not valid JSON, so the listings API is off:", error.message);
+  }
+} else if (!existsSync(KEY_FILE)) {
   // Without the key, the price endpoints still work. The listings endpoints answer with a
   // clear message instead (see listings.js).
   console.warn("No serviceAccountKey.json in the server folder, so the listings API is off. See README step 4.");

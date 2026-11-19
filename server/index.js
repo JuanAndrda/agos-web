@@ -156,8 +156,11 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: "Something went wrong on the server." });
 });
 
+// On Vercel the app is not started with app.listen: Vercel runs it as a function (see api/index.js).
+export default app;
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, (error) => {
+if (!process.env.VERCEL) app.listen(PORT, (error) => {
   // Express 5 gives us an error here if the server can't start (for example, the port is busy)
   if (error) {
     console.error(`The server could not start on port ${PORT}: ${error.message}`);
