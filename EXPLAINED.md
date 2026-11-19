@@ -517,3 +517,11 @@ The page shows one list, depending on your role (`isFarmer` in the code):
 
 **Tested** on the Firebase emulators: 39 API checks (every status code above, including the all-or-nothing cart and kilos going back after a cancel) and 28 browser checks (register, log in, prices, crop details, post, edit, mark sold, delete, add to cart, checkout, accept, cancel, log out), with stand-in PSA prices and Wikipedia photos. `npm run build` has no warnings.
 
+### Crop photos on the listings (Nov 19)
+Juan's idea: farmers never upload a photo, because we already have a photo of every crop from the **Wikipedia API** (the same one Crop Details and Market Prices use).
+- `components/ListingCard.js`: a new `photo` prop. If the page gives one, the card shows it at the top.
+- `pages/Marketplace.js` and `pages/MyListings.js`: after the listings load (`GET /api/listings`), `loadPhotos()` makes a list of the **different** crops (so 5 Tomato listings ask Wikipedia only once), calls `getCropPhotos(crops)`, and saves them in `photos` state, like `{ Tomato: "https://upload.wikimedia.org/..." }`. Each card gets `photo={photos[listing.crop]}`. The cards show first; the photos appear a moment later.
+- `components/ListingForm.js`: a `useEffect` with `[form.crop]` runs every time the farmer chooses a crop. It calls `getCropInfo(form.crop)` (`GET https://en.wikipedia.org/api/rest_v1/page/summary/...`) and shows a small preview under the Crop box: "Buyers will see this photo of Tomato. No upload needed."
+- If Wikipedia is down or has no photo, the card or preview simply has no picture. Nothing breaks.
+- Nothing new is saved in Firestore: the photo is looked up from the crop name every time.
+

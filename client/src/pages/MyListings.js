@@ -8,6 +8,7 @@ import {
   markSold,
   deleteListing,
 } from "../services/listingsService";
+import { getCropPhotos } from "../services/wikipediaService";
 import ListingCard from "../components/ListingCard";
 import ListingForm from "../components/ListingForm";
 import Loading from "../components/Loading";
@@ -31,6 +32,7 @@ function MyListings() {
   const [message, setMessage] = useState(""); // success message, like "Listing deleted."
   const [actionError, setActionError] = useState("");
   const [busyId, setBusyId] = useState(null); // the listing that is being changed right now
+  const [photos, setPhotos] = useState({}); // like { Tomato: "https://upload.wikimedia.org/..." }
 
   // The name in the browser tab
   useEffect(() => {
@@ -44,12 +46,23 @@ function MyListings() {
     try {
       const data = await getMyListings(); // 200 OK: my listings
       setListings(sortListings(data));
+      setLoading(false); // show the cards now; the photos come after
+      loadPhotos(data);
     } catch (err) {
       console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  // GET Wikipedia for the photo of each crop I sell (once per crop, not once per card)
+  async function loadPhotos(list) {
+    const crops = [];
+    for (const listing of list) {
+      if (!crops.includes(listing.crop)) crops.push(listing.crop);
+    }
+    setPhotos(await getCropPhotos(crops));
   }
 
   // Load my listings once, when the page opens
@@ -157,7 +170,7 @@ function MyListings() {
           {listings.map((listing) => {
             const busy = busyId === listing.id;
             return (
-              <ListingCard key={listing.id} listing={listing} showFarmer={false}>
+              <ListingCard key={listing.id} listing={listing} photo={photos[listing.crop]} showFarmer={false}>
                 <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => openForm(listing)}>
                   Edit
                 </button>

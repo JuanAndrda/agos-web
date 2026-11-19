@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CROPS, TOWNS, formatPeso } from "../constants";
 import { getPrices } from "../services/pricesService";
+import { getCropInfo } from "../services/wikipediaService";
 
 const EMPTY_FORM = {
   crop: "",
@@ -58,6 +59,9 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
   // PSA's newest farmgate price of each crop, like { Tomato: { pricePerKg: 48.2, month: "June 2026" } }.
   // null means "not loaded (yet)". The form still works without it.
   const [psaPrices, setPsaPrices] = useState(null);
+  // The Wikipedia photo of the chosen crop, so the farmer sees it without uploading anything.
+  // "" means no photo (yet).
+  const [cropPhoto, setCropPhoto] = useState("");
 
   // Load PSA's prices once when the form opens: GET /api/prices (our Express server asks PSA).
   // If PSA is down we just don't show a suggestion, because the farmer can still type a price.
@@ -70,6 +74,18 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
       })
       .catch((err) => console.error("No PSA suggestion:", err));
   }, []);
+
+  // Whenever the farmer chooses a crop, GET its photo from Wikipedia (the same call Crop Details uses).
+  // If Wikipedia is down or has no photo, the preview just stays hidden.
+  useEffect(() => {
+    setCropPhoto("");
+    if (form.crop === "") return;
+    getCropInfo(form.crop)
+      .then((info) => {
+        if (info && info.photo) setCropPhoto(info.photo);
+      })
+      .catch((err) => console.error("No crop photo:", err));
+  }, [form.crop]);
 
   // When the form opens, scroll to it so the farmer sees it (the Edit button may be far below)
   useEffect(() => {
@@ -165,6 +181,12 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
             ))}
           </select>
           {fieldError("crop")}
+          {cropPhoto && (
+            <div className="crop-preview">
+              <img src={cropPhoto} alt={`${form.crop}, from Wikipedia`} />
+              <span className="help">Buyers will see this photo of {form.crop}. No upload needed.</span>
+            </div>
+          )}
         </div>
 
         <div className="field">

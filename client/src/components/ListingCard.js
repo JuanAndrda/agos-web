@@ -1,5 +1,7 @@
 // ListingCard.js: one crop listing as a card. Used on the Marketplace and on My Listings.
 // "children" are extra buttons (Edit, Delete...) that only My Listings passes in.
+// "photo" is the crop's Wikipedia photo (the same one Crop Details shows). The page loads it
+// and passes it in. If there is none, the card simply has no picture.
 // "showFarmer" is false on My Listings, where every listing is the farmer's own,
 // so we hide the farmer's name and contact number there.
 import { Link } from "react-router-dom";
@@ -24,14 +26,17 @@ function formatPhone(number) {
   return `${number.slice(0, 4)} ${number.slice(4, 7)} ${number.slice(7)}`;
 }
 
-function ListingCard({ listing, children, showFarmer = true }) {
+function ListingCard({ listing, photo, children, showFarmer = true }) {
   const sold = listing.status === "sold";
   // Sold out = every kilo was ordered (the server marks it sold when the stock reaches 0 kg)
   const soldOut = sold && listing.quantityKg === 0;
 
   return (
     <article className={sold ? "card listing-card sold" : "card listing-card"}>
-      {/* The colored top of the card, like a product photo area on a shopping site */}
+      {/* The crop photo from Wikipedia. The farmer never uploads a photo: we show the crop's own. */}
+      {photo && <img className="listing-photo" src={photo} alt={`${listing.crop}, from Wikipedia`} />}
+
+      {/* The colored top of the card, with the crop name and the status */}
       <div className="listing-top">
         <h3>
           <Link to={`/crops/${listing.crop}`}>{listing.crop}</Link>

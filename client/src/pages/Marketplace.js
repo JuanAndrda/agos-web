@@ -6,6 +6,7 @@
 // so they get no box, and their own listings say "This is your listing".
 import { useEffect, useState } from "react";
 import { getAvailableListings } from "../services/listingsService";
+import { getCropPhotos } from "../services/wikipediaService";
 import { TOWNS } from "../constants";
 import SearchBar from "../components/SearchBar";
 import ListingCard from "../components/ListingCard";
@@ -24,6 +25,7 @@ function Marketplace({ user, cart, setCart }) {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [photos, setPhotos] = useState({}); // like { Tomato: "https://upload.wikimedia.org/..." }
 
   // The filters
   const [search, setSearch] = useState("");
@@ -44,12 +46,23 @@ function Marketplace({ user, cart, setCart }) {
     try {
       const data = await getAvailableListings(); // 200 OK: a list of listings
       setListings(data);
+      setLoading(false); // show the cards now; the photos come after
+      loadPhotos(data);
     } catch (err) {
       console.error(err);
       setError(err.message); // like "Please log in first." (401)
     } finally {
       setLoading(false);
     }
+  }
+
+  // GET Wikipedia for the photo of each crop that is for sale (once per crop, not once per card)
+  async function loadPhotos(list) {
+    const crops = [];
+    for (const listing of list) {
+      if (!crops.includes(listing.crop)) crops.push(listing.crop);
+    }
+    setPhotos(await getCropPhotos(crops));
   }
 
   // Load the listings once, when the page opens
@@ -178,7 +191,7 @@ function Marketplace({ user, cart, setCart }) {
           ) : (
             <div className="listing-grid">
               {shown.map((listing) => (
-                <ListingCard key={listing.id} listing={listing}>
+                <ListingCard key={listing.id} listing={listing} photo={photos[listing.crop]}>
                   {user.role === "buyer" && <AddToCart listing={listing} cart={cart} setCart={setCart} />}
                   {listing.ownerId === user.uid && <p className="cart-note">This is your listing.</p>}
                 </ListingCard>
