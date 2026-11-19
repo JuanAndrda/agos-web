@@ -4,15 +4,14 @@
 // results change instantly while you type.
 // Since Nov 17 buyers get an "Add to cart" box on each card (AddToCart.js). Farmers only sell,
 // so they get no box, and their own listings say "This is your listing".
-import { useCallback, useEffect, useState } from "react";
-import { getAvailableListings, friendlyListingError } from "../services/listingsService";
+import { useEffect, useState } from "react";
+import { getAvailableListings } from "../services/listingsService";
 import { TOWNS } from "../constants";
 import SearchBar from "../components/SearchBar";
 import ListingCard from "../components/ListingCard";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
 import AddToCart from "../components/AddToCart";
-import { useAuth } from "../context/AuthContext";
 
 // Our server sends the time as text, like "2026-11-15T12:30:00.000Z". This turns it into a
 // number we can sort by.
@@ -20,8 +19,8 @@ function timeOf(listing) {
   return listing.createdAt ? Date.parse(listing.createdAt) : 0;
 }
 
-function Marketplace() {
-  const { user } = useAuth();
+// user, cart and setCart are props from App.js
+function Marketplace({ user, cart, setCart }) {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -38,22 +37,26 @@ function Marketplace() {
     document.title = "Marketplace · AgosUgnayan Web";
   }, []);
 
-  const loadListings = useCallback(async () => {
+  // READ: GET /api/listings. A plain async function with try / catch / finally.
+  async function loadListings() {
     setLoading(true);
     setError("");
     try {
-      setListings(await getAvailableListings()); // READ: GET /api/listings
+      const data = await getAvailableListings(); // 200 OK: a list of listings
+      setListings(data);
     } catch (err) {
       console.error(err);
-      setError(friendlyListingError(err));
+      setError(err.message); // like "Please log in first." (401)
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
+  // Load the listings once, when the page opens
   useEffect(() => {
     loadListings();
-  }, [loadListings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 1. Filter: keep only the listings that match every filter
   const text = search.trim().toLowerCase();
@@ -89,7 +92,7 @@ function Marketplace() {
       </div>
 
       <div className="filters card">
-        <SearchBar label="Search a crop" value={search} onChange={setSearch} placeholder="e.g. eggplant" />
+        <SearchBar id="listing-search" label="Search a crop" value={search} onChange={setSearch} placeholder="e.g. eggplant" />
 
         <div className="filter-row">
           <div className="field">
@@ -176,7 +179,7 @@ function Marketplace() {
             <div className="listing-grid">
               {shown.map((listing) => (
                 <ListingCard key={listing.id} listing={listing}>
-                  {user.role === "buyer" && <AddToCart listing={listing} />}
+                  {user.role === "buyer" && <AddToCart listing={listing} cart={cart} setCart={setCart} />}
                   {listing.ownerId === user.uid && <p className="cart-note">This is your listing.</p>}
                 </ListingCard>
               ))}

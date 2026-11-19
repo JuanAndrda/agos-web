@@ -2,8 +2,6 @@
 // which page is open, so we can highlight it. Moving between pages doesn't reload the
 // whole page: that is what makes our app a single-page application (SPA).
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { useCart } from "../context/CartContext";
 import { logout } from "../services/authService";
 import Logo from "./Logo";
 
@@ -17,9 +15,8 @@ function initials(name) {
     .join("");
 }
 
-function Navbar() {
-  const { user } = useAuth();
-  const { items } = useCart();
+// user and cart are props from App.js (through MainLayout.js)
+function Navbar({ user, cart }) {
   const navigate = useNavigate();
 
   async function handleLogout() {
@@ -54,7 +51,7 @@ function Navbar() {
                 <NavLink
                   to="/cart"
                   className="cart-link"
-                  aria-label={`Cart, ${items.length} item${items.length === 1 ? "" : "s"}`}
+                  aria-label={`Cart, ${cart.length} item${cart.length === 1 ? "" : "s"}`}
                 >
                   {/* A small cart drawing made with SVG lines, like Logo.js */}
                   <svg
@@ -72,7 +69,7 @@ function Navbar() {
                     <circle cx="18" cy="20" r="1.5" />
                     <path d="M2 3h3l2.7 12.4a1 1 0 0 0 1 .8h9.6a1 1 0 0 0 1-.8L21 7H6" />
                   </svg>
-                  {items.length > 0 && <span className="cart-count">{items.length}</span>}
+                  {cart.length > 0 && <span className="cart-count">{cart.length}</span>}
                 </NavLink>
               )}
               <span className="user-name">

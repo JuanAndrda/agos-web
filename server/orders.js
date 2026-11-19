@@ -2,6 +2,9 @@
 // "order request". There is no payment in our app: the farmer accepts or declines the request,
 // and they agree on payment and pickup by phone.
 //
+// Status codes we use: 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized (in auth.js),
+// 403 Forbidden, 404 Not Found, 409 Conflict, 500 Internal Server Error, 503 Service Unavailable.
+//
 // The important part is POST /api/orders. It uses a Firestore TRANSACTION, so two buyers who
 // order the last 5 kg at the same moment can't both get them. A transaction reads the listings,
 // checks them, and writes the changes as ONE step: if the stock changed while we were checking,
@@ -13,20 +16,6 @@ import { requireLogin, requireFarmer, requireBuyer } from "./auth.js";
 
 const router = express.Router();
 const MAX_ITEMS = 20; // the most different listings in one checkout
-
-// Makes an error that also carries the HTTP status code we want to answer with,
-// like problem(409, "Only 3 kg of Tomato left."). The route catches it and sends it to React.
-function problem(status, message) {
-  const error = new Error(message);
-  error.status = status;
-  return error;
-}
-
-// Sends a problem() to React, or passes a real crash on to the 500 handler in index.js
-function sendProblem(res, error) {
-  if (!error.status) throw error;
-  res.status(error.status).json({ error: error.message });
-}
 
 // Firestore saves the time as a Timestamp. We send React text like "2026-11-17T12:30:00.000Z".
 function toJson(doc) {
@@ -42,6 +31,7 @@ function newestFirst(orders) {
 // Runs before every endpoint below: is the server connected to Firebase? (See firebaseAdmin.js.)
 router.use((req, res, next) => {
   if (!adminDb) {
+    // 503 Service Unavailable: the server is running, but this part can't work right now
     return res.status(503).json({
       error: "Orders are off because our server has no Firebase key yet. Add server/serviceAccountKey.json (README step 4), then restart the server.",
     });
@@ -75,45 +65,54 @@ router.post("/", requireLogin, requireBuyer, async (req, res) => {
     return res.status(400).json({ error: "The same listing is in the cart twice. Remove one of them." });
   }
 
-  // 2. The transaction: read every listing, check every item, then write everything at once
+  // 2. The transaction: read every listing, check every item, then write everything at once.
+  //    The transaction gives back a "result": { status, error } when something is wrong,
+  //    or { status: 201, orders } when everything is saved.
   try {
-    const orders = await adminDb.runTransaction(async (transaction) => {
+    const result = await adminDb.runTransaction(async (transaction) => {
       // 2a. READ: a transaction must do all its reads before any write
       const refs = ids.map((id) => adminDb.collection("listings").doc(id));
       const listings = await transaction.getAll(...refs);
 
-      // 2b. CHECK each item. Throwing a problem() stops the transaction, so NOTHING is saved.
-      listings.forEach((listing, i) => {
+      // 2b. CHECK each item. If one is wrong, we return before writing, so NOTHING is saved.
+      for (let i = 0; i < listings.length; i++) {
+        const listing = listings[i];
         const wanted = items[i].quantityKg;
         if (!listing.exists) {
-          throw problem(404, "One of the crops in your cart was deleted by the farmer. Remove it and try again.");
+          // 404 Not Found: the farmer deleted this listing
+          return { status: 404, error: "One of the crops in your cart was deleted by the farmer. Remove it and try again." };
         }
         const data = listing.data();
         // Extra safety: buyers have no listings, but nobody may ever order their own crop
         if (data.ownerId === req.user.uid) {
-          throw problem(403, `You can't order your own ${data.crop} listing.`);
+          return { status: 403, error: `You can't order your own ${data.crop} listing.` }; // 403 Forbidden
         }
         if (data.status !== "available" || data.quantityKg <= 0) {
-          throw problem(409, `${data.crop} from ${data.ownerName} is sold out. Remove it from your cart.`);
+          // 409 Conflict: the stock changed since the buyer added it to the cart
+          return { status: 409, error: `${data.crop} from ${data.ownerName} is sold out. Remove it from your cart.` };
         }
         if (wanted > data.quantityKg) {
-          throw problem(409, `Only ${data.quantityKg} kg of ${data.crop} from ${data.ownerName} is left. Lower the quantity.`);
+          return { status: 409, error: `Only ${data.quantityKg} kg of ${data.crop} from ${data.ownerName} is left. Lower the quantity.` };
         }
-      });
+      }
 
       // 2c. WRITE: lower each listing's stock, and save one order per listing
-      return listings.map((listing, i) => {
+      const orders = [];
+      for (let i = 0; i < listings.length; i++) {
+        const listing = listings[i];
         const data = listing.data();
         const quantityKg = items[i].quantityKg;
         const left = Math.round((data.quantityKg - quantityKg) * 100) / 100; // rounded, so 12.3 - 12 is 0.3
 
         // Lower the stock. At 0 kg the listing is sold out, so it leaves the Marketplace.
-        transaction.update(listing.ref, { quantityKg: left, ...(left === 0 && { status: "sold" }) });
+        const listingChanges = { quantityKg: left };
+        if (left === 0) listingChanges.status = "sold";
+        transaction.update(listing.ref, listingChanges);
 
         const order = {
           listingId: listing.id,
           crop: data.crop,
-          quantityKg,
+          quantityKg: quantityKg,
           pricePerKg: data.pricePerKg, // the price at the time of ordering
           total: Math.round(quantityKg * data.pricePerKg * 100) / 100, // rounded to centavos
           town: data.town,
@@ -127,66 +126,88 @@ router.post("/", requireLogin, requireBuyer, async (req, res) => {
         };
         const orderRef = adminDb.collection("orders").doc(); // a new empty document with a new ID
         transaction.set(orderRef, { ...order, createdAt: FieldValue.serverTimestamp() });
-        return { id: orderRef.id, ...order };
-      });
+        orders.push({ id: orderRef.id, ...order });
+      }
+      return { status: 201, orders: orders };
     });
-    res.status(201).json(orders); // 201 Created
+
+    // 3. Answer
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error }); // 403, 404 or 409
+    }
+    res.status(201).json(result.orders); // 201 Created
   } catch (error) {
-    sendProblem(res, error);
+    console.error(error);
+    res.status(500).json({ error: "We couldn't send your order. Please try again." }); // 500
   }
 });
 
 // ---- GET /api/orders/mine: the orders I sent (the buyer's "My orders") ----
 router.get("/mine", requireLogin, requireBuyer, async (req, res) => {
-  const snapshot = await adminDb.collection("orders").where("buyerId", "==", req.user.uid).get();
-  res.json(newestFirst(snapshot.docs.map(toJson))); // 200 OK
+  try {
+    const snapshot = await adminDb.collection("orders").where("buyerId", "==", req.user.uid).get();
+    res.status(200).json(newestFirst(snapshot.docs.map(toJson))); // 200 OK
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "We couldn't load your orders. Please try again." }); // 500
+  }
 });
 
 // ---- GET /api/orders/received: the orders on my listings (the farmer's "Orders received") ----
 router.get("/received", requireLogin, requireFarmer, async (req, res) => {
-  const snapshot = await adminDb.collection("orders").where("farmerId", "==", req.user.uid).get();
-  res.json(newestFirst(snapshot.docs.map(toJson))); // 200 OK
+  try {
+    const snapshot = await adminDb.collection("orders").where("farmerId", "==", req.user.uid).get();
+    res.status(200).json(newestFirst(snapshot.docs.map(toJson))); // 200 OK
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "We couldn't load the orders. Please try again." }); // 500
+  }
 });
 
 // ---- PATCH /api/orders/:id: change an order's status ----
 // React sends { status: "accepted" }, "declined" (the farmer) or "cancelled" (the buyer).
 // Only a "pending" order can change. Declined and cancelled orders put the kilos back.
 router.patch("/:id", requireLogin, async (req, res) => {
+  // 1. Check the data
   const status = req.body && req.body.status;
   if (!["accepted", "declined", "cancelled"].includes(status)) {
-    return res.status(400).json({ error: 'Status must be "accepted", "declined" or "cancelled".' });
+    return res.status(400).json({ error: 'Status must be "accepted", "declined" or "cancelled".' }); // 400
   }
 
   try {
-    // A transaction again, because we may change the order AND its listing's stock together
-    const updated = await adminDb.runTransaction(async (transaction) => {
-      // 1. READ the order (and its listing, if we must put kilos back)
+    // 2. A transaction again, because we may change the order AND its listing's stock together.
+    //    Like POST, it gives back { status, error } or { status: 200, order }.
+    const result = await adminDb.runTransaction(async (transaction) => {
+      // 2a. READ the order
       const orderRef = adminDb.collection("orders").doc(req.params.id);
       const order = await transaction.get(orderRef);
       if (!order.exists) {
-        throw problem(404, "This order doesn't exist anymore.");
+        return { status: 404, error: "This order doesn't exist anymore." }; // 404 Not Found
       }
       const data = order.data();
 
-      // 2. CHECK who may do what
+      // 2b. CHECK who may do what
       const isBuyer = data.buyerId === req.user.uid;
       const isFarmer = data.farmerId === req.user.uid;
       if (status === "cancelled" && !isBuyer) {
-        throw problem(403, "Only the buyer can cancel this order.");
+        return { status: 403, error: "Only the buyer can cancel this order." }; // 403 Forbidden
       }
       if (status !== "cancelled" && !isFarmer) {
-        throw problem(403, "Only the farmer who sells this crop can accept or decline the order.");
+        return { status: 403, error: "Only the farmer who sells this crop can accept or decline the order." };
       }
       if (data.status !== "pending") {
-        throw problem(409, `This order is already ${data.status}, so it can't change now.`); // 409 Conflict
+        // 409 Conflict: the order already changed, so this change doesn't fit anymore
+        return { status: 409, error: `This order is already ${data.status}, so it can't change now.` };
       }
 
+      // Declined and cancelled orders give the kilos back, so we read the listing too
       const putBack = status === "declined" || status === "cancelled";
       const listingRef = adminDb.collection("listings").doc(data.listingId);
-      const listing = putBack ? await transaction.get(listingRef) : null;
+      let listing = null;
+      if (putBack) listing = await transaction.get(listingRef);
 
-      // 3. WRITE: the new status, and the kilos go back to the listing
-      transaction.update(orderRef, { status });
+      // 2c. WRITE: the new status, and the kilos go back to the listing
+      transaction.update(orderRef, { status: status });
       if (listing && listing.exists) {
         const stock = listing.data();
         const changes = { quantityKg: Math.round((stock.quantityKg + data.quantityKg) * 100) / 100 };
@@ -194,11 +215,18 @@ router.patch("/:id", requireLogin, async (req, res) => {
         if (stock.status === "sold" && stock.quantityKg === 0) changes.status = "available";
         transaction.update(listingRef, changes);
       }
-      return { id: order.id, ...data, status, createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null };
+      const updated = { id: order.id, ...data, status: status, createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null };
+      return { status: 200, order: updated };
     });
-    res.json(updated); // 200 OK
+
+    // 3. Answer
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error }); // 403, 404 or 409
+    }
+    res.status(200).json(result.order); // 200 OK
   } catch (error) {
-    sendProblem(res, error);
+    console.error(error);
+    res.status(500).json({ error: "We couldn't change the order. Please try again." }); // 500
   }
 });
 

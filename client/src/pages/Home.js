@@ -2,9 +2,8 @@
 // before logging in. It uses two APIs we already have:
 //   1. our server's GET /api/prices (PSA prices), which doesn't need a login
 //   2. Wikipedia, for a photo of each crop (getCropPhotos, shared with Market Prices)
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import { getPrices } from "../services/pricesService";
 import { getCropPhotos } from "../services/wikipediaService";
 import { TOWNS, formatPeso } from "../constants";
@@ -18,8 +17,8 @@ const STEPS = [
   { title: "Call the farmer", text: "Tap the number on a listing to call or text the farmer." },
 ];
 
-function Home() {
-  const { user } = useAuth();
+// user is a prop from App.js: null when nobody is logged in
+function Home({ user }) {
   const [prices, setPrices] = useState([]);
   const [photos, setPhotos] = useState({}); // like { Tomato: "https://upload.wikimedia.org/..." }
   const [loading, setLoading] = useState(true);
@@ -30,26 +29,30 @@ function Home() {
     document.title = "AgosUgnayan Web · Iloilo crop prices and marketplace";
   }, []);
 
-  // useCallback keeps the same function between redraws, so useEffect below runs only once
-  const loadCrops = useCallback(async () => {
+  // Gets the prices from our server, then the photos from Wikipedia.
+  // A plain async function with try / catch / finally, like fetchDogs() in our class activity.
+  async function loadCrops() {
     setLoading(true);
     setError("");
     try {
       const data = await getPrices(""); // GET /api/prices -> the newest price of each crop
       setPrices(data.prices);
-      setLoading(false);
-      setPhotos(await getCropPhotos(data.prices.map((p) => p.crop))); // Wikipedia, one call per crop
+      setLoading(false); // show the tiles now; the photos come after
+      const crops = data.prices.map((p) => p.crop);
+      setPhotos(await getCropPhotos(crops)); // GET Wikipedia, one call per crop
     } catch (err) {
+      console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
-  // Load the crops when the page opens
+  // Load the crops once, when the page opens ([] = run only once)
   useEffect(() => {
     loadCrops();
-  }, [loadCrops]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="home">

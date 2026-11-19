@@ -2,7 +2,6 @@
 // register() makes the login in Firebase Authentication and saves the name and role in Firestore.
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import AuthPanel from "../components/AuthPanel";
 import { register, friendlyAuthError } from "../services/authService";
 
@@ -10,8 +9,8 @@ import { register, friendlyAuthError } from "../services/authService";
 // (for "role", the Farmer choice has id="role").
 const FIELD_ORDER = ["name", "email", "password", "role"];
 
-function Register() {
-  const { user, refreshUser } = useAuth();
+// user and refreshUser are props from App.js
+function Register({ user, refreshUser }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,12 +23,6 @@ function Register() {
   useEffect(() => {
     document.title = "Create an account · AgosUgnayan Web";
   }, []);
-
-  // After a failed try, put the cursor in the first field that needs fixing
-  useEffect(() => {
-    const firstProblem = FIELD_ORDER.find((field) => errors[field]);
-    if (firstProblem) document.getElementById(firstProblem).focus();
-  }, [errors]);
 
   // Logged in and done saving? Go to the prices.
   if (user && !saving && !error) return <Navigate to="/prices" replace />;
@@ -59,12 +52,17 @@ function Register() {
     setError("");
     const problems = checkForm();
     setErrors(problems);
-    if (Object.keys(problems).length > 0) return; // stop: something needs fixing
+    // Something needs fixing: put the cursor in the first wrong field, and stop
+    const firstProblem = FIELD_ORDER.find((field) => problems[field]);
+    if (firstProblem) {
+      document.getElementById(firstProblem).focus();
+      return;
+    }
 
     setSaving(true);
     try {
       await register(name.trim(), email.trim(), password, role);
-      await refreshUser(); // read the new name and role into AuthContext
+      await refreshUser(); // read the new name and role into App.js
     } catch (err) {
       setError(friendlyAuthError(err));
     }

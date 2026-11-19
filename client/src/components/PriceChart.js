@@ -2,10 +2,11 @@
 // (shapes written as code), so we don't need a chart library.
 //
 // How it works:
-//   1. We measure how wide the box is, so the chart fills it and the text stays a normal size.
+//   1. We measure how wide the box is (and again when the window is resized), so the chart
+//      fills it and the text stays a normal size.
 //   2. Each month becomes a point. Left to right is old to new. Higher on the chart = more expensive.
 //   3. You can click a point, or press Tab and Enter on it, to see that month's exact price.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { formatPeso } from "../constants";
 
 const HEIGHT = 240; // the chart's height in pixels
@@ -22,14 +23,15 @@ function PriceChart({ history }) {
 
   const [selected, setSelected] = useState(points.length - 1); // start on the newest month
   const [width, setWidth] = useState(600);
-  const boxRef = useRef(null);
 
   // 1. Measure the box now, and again whenever the window changes size
   useEffect(() => {
-    const box = boxRef.current;
-    const observer = new ResizeObserver(() => setWidth(box.clientWidth));
-    observer.observe(box);
-    return () => observer.disconnect(); // stop measuring when the page closes
+    function measure() {
+      setWidth(document.getElementById("chart-box").clientWidth);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure); // stop when the page closes
   }, []);
 
   // 2. Turn each price into a position. The lowest price sits near the bottom, the highest near the top.
@@ -83,7 +85,7 @@ function PriceChart({ history }) {
         )}
       </p>
 
-      <div ref={boxRef} className="chart-box">
+      <div id="chart-box" className="chart-box">
         <svg width={width} height={HEIGHT} role="group" aria-label="Price per kg by month. Choose a point to see its price.">
           {/* Grid lines and the price labels on the left */}
           {ticks.map((t) => (

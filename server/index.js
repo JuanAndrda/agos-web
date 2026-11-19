@@ -46,7 +46,7 @@ app.get("/api/prices", async (req, res) => {
   // 1. Check the search text sent by React
   const search = String(req.query.search || "").trim().toLowerCase();
   if (search.length > 50) {
-    return res.status(400).json({ error: "Search text is too long. Use 50 characters or fewer." });
+    return res.status(400).json({ error: "Search text is too long. Use 50 characters or fewer." }); // 400 Bad Request
   }
 
   // 2. Get the prices (from the cache, or from PSA)
@@ -55,12 +55,13 @@ app.get("/api/prices", async (req, res) => {
     data = await getPrices();
   } catch (error) {
     console.error(error);
+    // 502 Bad Gateway: OUR server is fine, but the server we depend on (PSA) didn't answer
     return res.status(502).json({ error: PSA_ERROR });
   }
 
-  // 3. Filter by the search text and send back clean JSON
+  // 3. Filter by the search text and answer: 200 OK with clean JSON
   const prices = latestPerCrop(data.prices).filter((p) => p.crop.toLowerCase().includes(search));
-  res.json({
+  res.status(200).json({
     source: "PSA OpenSTAT",
     area: "Iloilo Province",
     checkedAt: new Date(data.savedAt).toISOString(), // when our server last asked PSA
@@ -75,7 +76,7 @@ app.get("/api/prices/:crop", async (req, res) => {
   // 1. Check that we track this crop
   const crop = CROPS.find((c) => c.name.toLowerCase() === req.params.crop.toLowerCase());
   if (!crop) {
-    return res.status(404).json({ error: `We don't have PSA prices for "${req.params.crop}".` });
+    return res.status(404).json({ error: `We don't have PSA prices for "${req.params.crop}".` }); // 404 Not Found
   }
 
   // 2. Get the prices (from the cache, or from PSA)
@@ -84,14 +85,14 @@ app.get("/api/prices/:crop", async (req, res) => {
     data = await getPrices();
   } catch (error) {
     console.error(error);
-    return res.status(502).json({ error: PSA_ERROR });
+    return res.status(502).json({ error: PSA_ERROR }); // 502 Bad Gateway: PSA didn't answer
   }
 
-  // 3. Keep only this crop, newest month first
+  // 3. Keep only this crop, newest month first, and answer: 200 OK
   const history = data.prices
     .filter((p) => p.crop === crop.name)
     .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
-  res.json({
+  res.status(200).json({
     source: "PSA OpenSTAT",
     area: "Iloilo Province",
     checkedAt: new Date(data.savedAt).toISOString(),
@@ -106,16 +107,17 @@ app.use("/api/listings", listingsRouter);
 // ---- Endpoints 8 to 11: our orders API, POST, GET and PATCH (see orders.js) ----
 app.use("/api/orders", ordersRouter);
 
-// Any other address: answer with a clear 404 instead of an HTML page
+// Any other address: answer with 404 Not Found (as JSON, not an HTML page)
 app.use((req, res) => {
   res.status(404).json({ error: "This API address doesn't exist." });
 });
 
-// If any route crashes, answer with 500 instead of stopping the server
+// A safety net: if a route crashes in a way we didn't catch, answer with
+// 500 Internal Server Error instead of stopping the server
 app.use((error, req, res, next) => {
   // express.json() could not read the data, because it isn't real JSON
   if (error.type === "entity.parse.failed") {
-    return res.status(400).json({ error: "The data sent to the server isn't valid JSON." });
+    return res.status(400).json({ error: "The data sent to the server isn't valid JSON." }); // 400
   }
   console.error(error);
   res.status(500).json({ error: "Something went wrong on the server." });

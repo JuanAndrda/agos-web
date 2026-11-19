@@ -1,6 +1,6 @@
 // ListingForm.js: the form to post a new crop or edit one. It checks every field
 // before saving and explains what to fix. My Listings decides what "save" does.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { CROPS, TOWNS, formatPeso } from "../constants";
 import { getPrices } from "../services/pricesService";
 
@@ -55,7 +55,6 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const formRef = useRef(null);
   // PSA's newest farmgate price of each crop, like { Tomato: { pricePerKg: 48.2, month: "June 2026" } }.
   // null means "not loaded (yet)". The form still works without it.
   const [psaPrices, setPsaPrices] = useState(null);
@@ -74,15 +73,8 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
 
   // When the form opens, scroll to it so the farmer sees it (the Edit button may be far below)
   useEffect(() => {
-    formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("listing-form").scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
-
-  // After a failed save, put the cursor in the first field that needs fixing.
-  // This helps people who use the keyboard or a screen reader find the problem.
-  useEffect(() => {
-    const firstProblem = FIELD_ORDER.find((name) => errors[name]);
-    if (firstProblem) document.getElementById(firstProblem).focus();
-  }, [errors]);
 
   // One change handler for every field: the input's "name" says which field to update
   function handleChange(event) {
@@ -102,21 +94,30 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
     event.preventDefault();
     const problems = checkForm(form);
     setErrors(problems);
-    if (Object.keys(problems).length > 0) return; // stop: something needs fixing
+    // Something needs fixing: put the cursor in the first wrong field, and stop.
+    // This helps people who use the keyboard or a screen reader find the problem.
+    const firstProblem = FIELD_ORDER.find((name) => problems[name]);
+    if (firstProblem) {
+      document.getElementById(firstProblem).focus();
+      return;
+    }
+
+    // The listing we send to the server, with the numbers as real numbers
+    const listing = {
+      crop: form.crop,
+      quantityKg: Number(form.quantityKg),
+      pricePerKg: Number(form.pricePerKg),
+      town: form.town,
+      harvestDate: form.harvestDate,
+      contactNumber: cleanNumber(form.contactNumber),
+      notes: form.notes.trim(),
+    };
+    if (editing) listing.status = form.status; // only the edit form can change the status
 
     setSaving(true);
     setSaveError("");
     try {
-      await onSave({
-        crop: form.crop,
-        quantityKg: Number(form.quantityKg),
-        pricePerKg: Number(form.pricePerKg),
-        town: form.town,
-        harvestDate: form.harvestDate,
-        contactNumber: cleanNumber(form.contactNumber),
-        notes: form.notes.trim(),
-        ...(editing && { status: form.status }), // only the edit form can change the status
-      });
+      await onSave(listing); // My Listings sends POST or PATCH
     } catch (err) {
       setSaveError(err.message);
       setSaving(false);
@@ -133,7 +134,7 @@ function ListingForm({ initialValues, onSave, onCancel, saveText }) {
   }
 
   return (
-    <form ref={formRef} className="card listing-form" onSubmit={handleSubmit} noValidate>
+    <form id="listing-form" className="card listing-form" onSubmit={handleSubmit} noValidate>
       <h2>{editing ? `Edit your ${initialValues.crop} listing` : "Post a crop"}</h2>
 
       {Object.keys(errors).length > 0 && (

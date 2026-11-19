@@ -2,12 +2,11 @@
 // and shows a friendly message if Firebase says no.
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import AuthPanel from "../components/AuthPanel";
 import { login, friendlyAuthError } from "../services/authService";
 
-function Login() {
-  const { user } = useAuth();
+// user is a prop from App.js: null when nobody is logged in
+function Login({ user }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

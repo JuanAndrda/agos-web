@@ -2,7 +2,7 @@
 // Wikipedia (photo and description, called directly) and our server (PSA prices by month).
 // The crop name comes from the URL: /crops/Tomato -> cropName = "Tomato".
 // The prices are shown as 3 boxes (latest, previous month, change) and a line chart (PriceChart.js).
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CROPS, formatPeso } from "../constants";
 import { getCropInfo } from "../services/wikipediaService";
@@ -32,38 +32,43 @@ function CropDetails() {
   const [pricesLoading, setPricesLoading] = useState(true);
   const [pricesError, setPricesError] = useState("");
 
-  const loadInfo = useCallback(async () => {
+  // API 1: Wikipedia (photo and description). Plain async function with try / catch / finally.
+  async function loadInfo() {
     setInfoLoading(true);
     setInfoError("");
     try {
       setInfo(await getCropInfo(cropName)); // GET Wikipedia /page/summary/<title>
     } catch (err) {
+      console.error(err);
       setInfoError(err.message);
     } finally {
       setInfoLoading(false);
     }
-  }, [cropName]);
+  }
 
-  const loadPrices = useCallback(async () => {
+  // API 2: our server (PSA prices by month)
+  async function loadPrices() {
     setPricesLoading(true);
     setPricesError("");
     try {
       const data = await getPriceHistory(cropName); // GET /api/prices/<cropName>
       setHistory(data.history.slice(0, 12)); // the newest 12 months
     } catch (err) {
+      console.error(err);
       setPricesError(err.message);
     } finally {
       setPricesLoading(false);
     }
-  }, [cropName]);
+  }
 
-  // Load both when the page opens (or when the crop in the URL changes)
+  // Load both when the page opens, and again when the crop in the URL changes ([cropName])
   useEffect(() => {
     if (knownCrop) {
       loadInfo();
       loadPrices();
     }
-  }, [knownCrop, loadInfo, loadPrices]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cropName]);
 
   if (!knownCrop) {
     return (

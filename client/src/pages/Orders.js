@@ -3,9 +3,8 @@
 // - a farmer sees "Orders received" (requests for their crops, with Accept and Decline)
 // Each button sends PATCH /api/orders/:id with the new status. Decline and Cancel put the kilos
 // back on the listing (the server does it in server/orders.js).
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import { getMyOrders, getReceivedOrders, setOrderStatus } from "../services/ordersService";
 import { formatPeso } from "../constants";
 import Loading from "../components/Loading";
@@ -45,8 +44,8 @@ function OrderRow({ order, who, children }) {
   );
 }
 
-function Orders() {
-  const { user } = useAuth();
+// user is a prop from App.js
+function Orders({ user }) {
   const isFarmer = user.role === "farmer";
   const [myOrders, setMyOrders] = useState([]);
   const [received, setReceived] = useState([]);
@@ -60,7 +59,8 @@ function Orders() {
     document.title = "Orders · AgosUgnayan Web";
   }, []);
 
-  const loadOrders = useCallback(async () => {
+  // READ: GET the orders. A plain async function with try / catch / finally.
+  async function loadOrders() {
     setLoading(true);
     setError("");
     try {
@@ -75,11 +75,13 @@ function Orders() {
     } finally {
       setLoading(false);
     }
-  }, [isFarmer]);
+  }
 
+  // Load the orders once, when the page opens
   useEffect(() => {
     loadOrders();
-  }, [loadOrders]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Accept, Decline or Cancel one order: UPDATE with PATCH /api/orders/:id
   async function changeStatus(order, status, successText) {

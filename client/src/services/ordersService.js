@@ -1,26 +1,59 @@
-// ordersService.js: every orders call lives here. Like listingsService.js, these functions send
-// HTTP requests to OUR Express server (server/orders.js), which checks them and uses Firestore.
-import { callServer } from "./serverApi";
+// ordersService.js: every orders request lives here. Like listingsService.js, these functions
+// send HTTP requests to OUR Express server (server/orders.js), which checks them and uses Firestore.
+// Same 3 steps: get the login token -> fetch() with a method -> readResponse() checks the status.
+import { auth } from "../firebase";
+import { readResponse } from "./readResponse";
 
 // CREATE: POST /api/orders -> send the cart as order requests.
-// cartItems look like [{ listing: {...}, quantityKg: 5 }]. The server only needs the IDs and kilos;
-// it reads the price and the stock itself, so nobody can send a fake price.
-export function placeOrders(cartItems) {
-  const items = cartItems.map((item) => ({ listingId: item.listing.id, quantityKg: item.quantityKg }));
-  return callServer("/api/orders", "POST", { items });
+// The cart looks like [{ listing: {...}, quantityKg: 5 }]. The server only needs the listing IDs
+// and the kilos. It reads the price and the stock itself, so nobody can send a fake price.
+// Success: 201 Created with the new orders. Not enough kilos left: 409 Conflict.
+export async function placeOrders(cart) {
+  const items = cart.map((item) => ({ listingId: item.listing.id, quantityKg: item.quantityKg }));
+
+  const token = await auth.currentUser.getIdToken();
+  const response = await fetch("/api/orders", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token,
+    },
+    body: JSON.stringify({ items: items }),
+  });
+  return readResponse(response);
 }
 
-// READ: GET /api/orders/mine -> the orders I sent (buyer)
-export function getMyOrders() {
-  return callServer("/api/orders/mine");
+// READ: GET /api/orders/mine -> the orders I sent (buyers only). Success: 200 OK.
+export async function getMyOrders() {
+  const token = await auth.currentUser.getIdToken();
+  const response = await fetch("/api/orders/mine", {
+    method: "GET",
+    headers: { Authorization: "Bearer " + token },
+  });
+  return readResponse(response);
 }
 
-// READ: GET /api/orders/received -> the orders on my listings (farmer)
-export function getReceivedOrders() {
-  return callServer("/api/orders/received");
+// READ: GET /api/orders/received -> the orders on my listings (farmers only). Success: 200 OK.
+export async function getReceivedOrders() {
+  const token = await auth.currentUser.getIdToken();
+  const response = await fetch("/api/orders/received", {
+    method: "GET",
+    headers: { Authorization: "Bearer " + token },
+  });
+  return readResponse(response);
 }
 
-// UPDATE: PATCH /api/orders/abc123 -> { status: "accepted" | "declined" | "cancelled" }
-export function setOrderStatus(id, status) {
-  return callServer("/api/orders/" + id, "PATCH", { status });
+// UPDATE: PATCH /api/orders/abc123 with { status: "accepted" | "declined" | "cancelled" }
+// Success: 200 OK. Not your order: 403. Already accepted or cancelled: 409 Conflict.
+export async function setOrderStatus(id, status) {
+  const token = await auth.currentUser.getIdToken();
+  const response = await fetch("/api/orders/" + id, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token,
+    },
+    body: JSON.stringify({ status: status }),
+  });
+  return readResponse(response);
 }

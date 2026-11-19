@@ -1,7 +1,10 @@
 // listings.js: our own listings API, 5 endpoints. React calls these instead of talking to
 // Firestore directly, so the server can check every request before it touches the database.
-// Read each endpoint top to bottom: check who it is -> check the data -> use the database ->
-// answer with a status code and JSON.
+// Read each endpoint top to bottom. Every one follows the same steps:
+//   check who it is (requireLogin, requireFarmer) -> check the data -> use the database ->
+//   answer with a STATUS CODE and JSON: res.status(201).json(...)
+// Status codes we use: 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized (in auth.js),
+// 403 Forbidden, 404 Not Found, 500 Internal Server Error, 503 Service Unavailable.
 import express from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./firebaseAdmin.js";
@@ -68,6 +71,7 @@ function toJson(doc) {
 // Runs before every endpoint below: is the server connected to Firebase? (See firebaseAdmin.js.)
 router.use((req, res, next) => {
   if (!adminDb) {
+    // 503 Service Unavailable: the server is running, but this part can't work right now
     return res.status(503).json({
       error: "The listings are off because our server has no Firebase key yet. Add server/serviceAccountKey.json (README step 4), then restart the server.",
     });
@@ -77,16 +81,29 @@ router.use((req, res, next) => {
 
 // ---- GET /api/listings: every listing that is still available, newest first (Marketplace) ----
 router.get("/", requireLogin, async (req, res) => {
-  const snapshot = await adminDb.collection("listings").where("status", "==", "available").get();
-  const listings = snapshot.docs.map(toJson);
-  listings.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-  res.json(listings); // 200 OK
+  try {
+    // 1. Use the database: read the listings whose status is "available"
+    const snapshot = await adminDb.collection("listings").where("status", "==", "available").get();
+    const listings = snapshot.docs.map(toJson);
+    listings.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+
+    // 2. Answer: 200 OK with the list
+    res.status(200).json(listings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "We couldn't load the listings. Please try again." }); // 500 Internal Server Error
+  }
 });
 
 // ---- GET /api/listings/mine: the farmer's own listings, available and sold (My Listings) ----
 router.get("/mine", requireLogin, requireFarmer, async (req, res) => {
-  const snapshot = await adminDb.collection("listings").where("ownerId", "==", req.user.uid).get();
-  res.json(snapshot.docs.map(toJson)); // 200 OK
+  try {
+    const snapshot = await adminDb.collection("listings").where("ownerId", "==", req.user.uid).get();
+    res.status(200).json(snapshot.docs.map(toJson)); // 200 OK
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "We couldn't load your listings. Please try again." }); // 500
+  }
 });
 
 // ---- POST /api/listings: post a new crop (farmers only) ----
@@ -104,62 +121,90 @@ router.post("/", requireLogin, requireFarmer, async (req, res) => {
     status: "available", // a new listing always starts as available
   };
 
-  // 2. Check it
+  // 2. Check the data
   const problems = findProblems(listing);
   if (problems.length > 0) {
-    return res.status(400).json({ error: problems.join(" ") }); // 400 Bad Request
+    return res.status(400).json({ error: problems.join(" ") }); // 400 Bad Request: wrong data
   }
 
-  // 3. Save it. The SERVER fills in the owner from the checked token, so nobody can fake it.
-  const ref = await adminDb.collection("listings").add({
-    ...listing,
-    ownerId: req.user.uid,
-    ownerName: req.user.name || "",
-    createdAt: FieldValue.serverTimestamp(), // Firebase fills in the date and time
-  });
-  res.status(201).json(toJson(await ref.get())); // 201 Created
+  try {
+    // 3. Use the database: save it. The SERVER fills in the owner from the checked token,
+    //    so nobody can post a listing in someone else's name.
+    const ref = await adminDb.collection("listings").add({
+      ...listing,
+      ownerId: req.user.uid,
+      ownerName: req.user.name || "",
+      createdAt: FieldValue.serverTimestamp(), // Firebase fills in the date and time
+    });
+    const saved = await ref.get();
+
+    // 4. Answer: 201 Created, with the new listing
+    res.status(201).json(toJson(saved));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "We couldn't save your listing. Please try again." }); // 500
+  }
 });
 
 // ---- PATCH /api/listings/:id: edit a listing, or mark it sold (the owner only) ----
 // PATCH means "change only the fields I send". Mark as sold sends just { status: "sold" }.
+// ":id" is a route parameter: for /api/listings/abc123, req.params.id is "abc123".
 router.patch("/:id", requireLogin, async (req, res) => {
-  // 1. Does the listing exist, and is it yours?
-  const ref = adminDb.collection("listings").doc(req.params.id);
-  const current = await ref.get();
-  if (!current.exists) {
-    return res.status(404).json({ error: "This listing doesn't exist anymore. It may have been deleted." });
-  }
-  if (current.data().ownerId !== req.user.uid) {
-    return res.status(403).json({ error: "You can only change your own listings." }); // 403 Forbidden
-  }
+  try {
+    // 1. Does the listing exist, and is it yours?
+    const ref = adminDb.collection("listings").doc(req.params.id);
+    const current = await ref.get();
+    if (!current.exists) {
+      return res.status(404).json({ error: "This listing doesn't exist anymore. It may have been deleted." }); // 404 Not Found
+    }
+    if (current.data().ownerId !== req.user.uid) {
+      return res.status(403).json({ error: "You can only change your own listings." }); // 403 Forbidden
+    }
 
-  // 2. Check the changes
-  const changes = pickFields(req.body || {});
-  if (Object.keys(changes).length === 0) {
-    return res.status(400).json({ error: "Nothing to change. Send at least one field, like status." });
-  }
-  const problems = findProblems(changes);
-  if (problems.length > 0) {
-    return res.status(400).json({ error: problems.join(" ") });
-  }
+    // 2. Check the data
+    const changes = pickFields(req.body || {});
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ error: "Nothing to change. Send at least one field, like status." }); // 400
+    }
+    const problems = findProblems(changes);
+    if (problems.length > 0) {
+      return res.status(400).json({ error: problems.join(" ") }); // 400 Bad Request
+    }
 
-  // 3. Save only the changed fields, and send back the whole updated listing
-  await ref.update(changes);
-  res.json(toJson(await ref.get())); // 200 OK
+    // 3. Use the database: save only the changed fields
+    await ref.update(changes);
+    const updated = await ref.get();
+
+    // 4. Answer: 200 OK, with the whole updated listing
+    res.status(200).json(toJson(updated));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "We couldn't save your changes. Please try again." }); // 500
+  }
 });
 
 // ---- DELETE /api/listings/:id: remove a listing (the owner only) ----
 router.delete("/:id", requireLogin, async (req, res) => {
-  const ref = adminDb.collection("listings").doc(req.params.id);
-  const current = await ref.get();
-  if (!current.exists) {
-    return res.status(404).json({ error: "This listing doesn't exist anymore. It may have been deleted." });
+  try {
+    // 1. Does the listing exist, and is it yours?
+    const ref = adminDb.collection("listings").doc(req.params.id);
+    const current = await ref.get();
+    if (!current.exists) {
+      return res.status(404).json({ error: "This listing doesn't exist anymore. It may have been deleted." }); // 404
+    }
+    if (current.data().ownerId !== req.user.uid) {
+      return res.status(403).json({ error: "You can only delete your own listings." }); // 403 Forbidden
+    }
+
+    // 2. Use the database: delete it
+    await ref.delete();
+
+    // 3. Answer: 200 OK
+    res.status(200).json({ message: "Listing deleted." });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "We couldn't delete your listing. Please try again." }); // 500
   }
-  if (current.data().ownerId !== req.user.uid) {
-    return res.status(403).json({ error: "You can only delete your own listings." });
-  }
-  await ref.delete();
-  res.json({ message: "Listing deleted." }); // 200 OK
 });
 
 export default router;

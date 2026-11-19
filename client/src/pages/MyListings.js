@@ -1,13 +1,12 @@
 // MyListings.js: a farmer's own listings, with all four CRUD actions:
 // Create (Post a crop), Read (the list), Update (Edit, or Mark as sold) and Delete.
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getMyListings,
   addListing,
   updateListing,
   markSold,
   deleteListing,
-  friendlyListingError,
 } from "../services/listingsService";
 import ListingCard from "../components/ListingCard";
 import ListingForm from "../components/ListingForm";
@@ -38,22 +37,26 @@ function MyListings() {
     document.title = "My Listings · AgosUgnayan Web";
   }, []);
 
-  const loadListings = useCallback(async () => {
+  // READ: GET /api/listings/mine. A plain async function with try / catch / finally.
+  async function loadListings() {
     setLoading(true);
     setError("");
     try {
-      setListings(sortListings(await getMyListings())); // READ: GET /api/listings/mine
+      const data = await getMyListings(); // 200 OK: my listings
+      setListings(sortListings(data));
     } catch (err) {
       console.error(err);
-      setError(friendlyListingError(err));
+      setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
+  // Load my listings once, when the page opens
   useEffect(() => {
     loadListings();
-  }, [loadListings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function openForm(mode) {
     setFormMode(mode);
@@ -73,7 +76,7 @@ function MyListings() {
       }
     } catch (err) {
       console.error(err);
-      throw new Error(friendlyListingError(err));
+      throw err; // ListingForm catches it and shows the message, like "Only farmers can do this." (403)
     }
     setFormMode(null);
     loadListings();
@@ -90,7 +93,7 @@ function MyListings() {
       await loadListings();
     } catch (err) {
       console.error(err);
-      setActionError(friendlyListingError(err));
+      setActionError(err.message);
     } finally {
       setBusyId(null);
     }

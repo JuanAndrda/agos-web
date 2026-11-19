@@ -2,15 +2,16 @@
 // It checks the number BEFORE adding: more than 0, a whole number, and not more than the stock.
 // The server checks the same things again at checkout, because the stock can change.
 import { useState } from "react";
-import { useCart } from "../context/CartContext";
 
-function AddToCart({ listing }) {
-  const { addToCart, kilosInCart } = useCart();
+// cart and setCart are props from App.js (through Marketplace.js)
+function AddToCart({ listing, cart, setCart }) {
   const [kilos, setKilos] = useState("1");
   const [error, setError] = useState("");
   const [added, setAdded] = useState("");
 
-  const inCart = kilosInCart(listing.id);
+  // Is this listing in the cart already? find() gives the item, or undefined if it isn't there
+  const itemInCart = cart.find((item) => item.listing.id === listing.id);
+  const inCart = itemInCart ? itemInCart.quantityKg : 0; // kilos already in the cart
   const left = listing.quantityKg - inCart; // what the buyer can still add
   const inputId = `kilos-${listing.id}`;
 
@@ -22,7 +23,17 @@ function AddToCart({ listing }) {
     } else if (wanted > left) {
       setError(inCart > 0 ? `Only ${left} kg more is left (${inCart} kg is in your cart).` : `Only ${left} kg left.`);
     } else {
-      addToCart(listing, wanted);
+      if (itemInCart) {
+        // Already in the cart: add the new kilos to that item
+        setCart(
+          cart.map((item) =>
+            item.listing.id === listing.id ? { listing: item.listing, quantityKg: item.quantityKg + wanted } : item
+          )
+        );
+      } else {
+        // Not in the cart yet: add a new item at the end
+        setCart([...cart, { listing: listing, quantityKg: wanted }]);
+      }
       setError("");
       setAdded(`Added ${wanted} kg to your cart.`);
     }

@@ -1,7 +1,7 @@
 // MarketPrices.js: the newest farmgate price of each crop in Iloilo, from PSA through our server.
 // Every API page has the same three states: loading, error and data (plus "empty" when there's no data).
 // Each crop is a card with its Wikipedia photo. Clicking a card opens that crop's Crop Details page.
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getPrices } from "../services/pricesService";
 import { getCropPhotos } from "../services/wikipediaService";
@@ -24,8 +24,9 @@ function MarketPrices() {
     document.title = "Market Prices · AgosUgnayan Web";
   }, []);
 
-  // useCallback keeps the same function between redraws, so useEffect below runs only once
-  const loadPrices = useCallback(async (text) => {
+  // Asks our server for the prices that match the search text.
+  // A plain async function with try / catch / finally, like fetchDogs() in our class activity.
+  async function loadPrices(text) {
     setLoading(true);
     setError("");
     try {
@@ -34,20 +35,19 @@ function MarketPrices() {
       setCheckedAt(data.checkedAt);
       setSearched(text);
     } catch (err) {
+      console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
-  // Load all prices when the page opens
+  // When the page opens ([] = only once): load all prices, and the photos of all 10 crops from
+  // Wikipedia. A search loads new prices, but not the photos again.
   useEffect(() => {
     loadPrices("");
-  }, [loadPrices]);
-
-  // Load the photos of all 10 crops once, from Wikipedia. A search doesn't load them again.
-  useEffect(() => {
-    getCropPhotos(CROPS).then(setPhotos);
+    getCropPhotos(CROPS).then((result) => setPhotos(result));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function showAll() {
@@ -69,6 +69,7 @@ function MarketPrices() {
           Farmgate prices in Iloilo Province · Source: <strong>PSA OpenSTAT</strong>
         </p>
         <SearchBar
+          id="price-search"
           label="Search a crop"
           value={search}
           onChange={setSearch}

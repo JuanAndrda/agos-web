@@ -1,0 +1,289 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_source": "insomnia.desktop.app:v2023.5.8",
+  "resources": [
+    {
+      "_id": "wrk_agos",
+      "_type": "workspace",
+      "name": "AgosUgnayan Web API",
+      "description": "Our Express server's endpoints, for the class demo (like Activity 8).",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_agos",
+      "name": "Base Environment",
+      "data": {}
+    },
+    {
+      "_id": "env_local",
+      "_type": "environment",
+      "parentId": "env_base",
+      "name": "Local (npm start)",
+      "data": {
+        "base_url": "http://localhost:5000",
+        "firebase_api_key": "PASTE the REACT_APP_FIREBASE_API_KEY from client/.env",
+        "email": "PASTE a test account email",
+        "password": "PASTE its password",
+        "token": "PASTE the idToken from request 0 here",
+        "listing_id": "PASTE a listing id here",
+        "order_id": "PASTE an order id here"
+      }
+    },
+    {
+      "_id": "fld_login",
+      "_type": "request_group",
+      "parentId": "wrk_agos",
+      "name": "0. Login (Firebase)",
+      "metaSortKey": 0
+    },
+    {
+      "_id": "fld_prices",
+      "_type": "request_group",
+      "parentId": "wrk_agos",
+      "name": "1. Prices (PSA, no login)",
+      "metaSortKey": 1
+    },
+    {
+      "_id": "fld_listings",
+      "_type": "request_group",
+      "parentId": "wrk_agos",
+      "name": "2. Listings",
+      "metaSortKey": 2
+    },
+    {
+      "_id": "fld_orders",
+      "_type": "request_group",
+      "parentId": "wrk_agos",
+      "name": "3. Orders",
+      "metaSortKey": 3
+    },
+    {
+      "_id": "req_1",
+      "_type": "request",
+      "parentId": "fld_login",
+      "name": "Get a login token",
+      "method": "POST",
+      "url": "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={{ _.firebase_api_key }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "description": "Firebase answers 200 OK with an idToken. Copy idToken into the 'token' variable (Manage Environments). It lasts 1 hour.",
+      "metaSortKey": 1,
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"{{ _.email }}\",\n  \"password\": \"{{ _.password }}\",\n  \"returnSecureToken\": true\n}"
+      }
+    },
+    {
+      "_id": "req_2",
+      "_type": "request",
+      "parentId": "fld_prices",
+      "name": "GET newest prices (search)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/prices?search=tomato",
+      "headers": [],
+      "description": "200 OK. 400 if search > 50 characters. 502 if PSA is down.",
+      "metaSortKey": 2,
+      "body": {}
+    },
+    {
+      "_id": "req_3",
+      "_type": "request",
+      "parentId": "fld_prices",
+      "name": "GET one crop's price history",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/prices/Tomato",
+      "headers": [],
+      "description": "200 OK. Try /api/prices/Banana for 404 Not Found.",
+      "metaSortKey": 3,
+      "body": {}
+    },
+    {
+      "_id": "req_4",
+      "_type": "request",
+      "parentId": "fld_listings",
+      "name": "GET available listings",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/listings",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "200 OK. Remove the Authorization header to see 401 Unauthorized.",
+      "metaSortKey": 4,
+      "body": {}
+    },
+    {
+      "_id": "req_5",
+      "_type": "request",
+      "parentId": "fld_listings",
+      "name": "GET my listings (farmer)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/listings/mine",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "200 OK for a farmer, 403 Forbidden for a buyer.",
+      "metaSortKey": 5,
+      "body": {}
+    },
+    {
+      "_id": "req_6",
+      "_type": "request",
+      "parentId": "fld_listings",
+      "name": "POST a new listing (farmer)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/listings",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "201 Created. Change pricePerKg to 0 to see 400 Bad Request. Copy the id into listing_id.",
+      "metaSortKey": 6,
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"crop\": \"Tomato\",\n  \"quantityKg\": 20,\n  \"pricePerKg\": 50,\n  \"town\": \"Oton\",\n  \"harvestDate\": \"\",\n  \"contactNumber\": \"09171234567\",\n  \"notes\": \"Posted from Insomnia\"\n}"
+      }
+    },
+    {
+      "_id": "req_7",
+      "_type": "request",
+      "parentId": "fld_listings",
+      "name": "PATCH a listing (owner)",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/api/listings/{{ _.listing_id }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "200 OK. 403 if it isn't yours, 404 if the id doesn't exist.",
+      "metaSortKey": 7,
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"pricePerKg\": 55\n}"
+      }
+    },
+    {
+      "_id": "req_8",
+      "_type": "request",
+      "parentId": "fld_listings",
+      "name": "DELETE a listing (owner)",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/listings/{{ _.listing_id }}",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "200 OK. Send it twice: the second time is 404 Not Found.",
+      "metaSortKey": 8,
+      "body": {}
+    },
+    {
+      "_id": "req_9",
+      "_type": "request",
+      "parentId": "fld_orders",
+      "name": "POST an order (buyer)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/orders",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "201 Created. Ask for more kilos than are left to see 409 Conflict. A farmer gets 403.",
+      "metaSortKey": 9,
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"items\": [\n    {\n      \"listingId\": \"{{ _.listing_id }}\",\n      \"quantityKg\": 2\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_10",
+      "_type": "request",
+      "parentId": "fld_orders",
+      "name": "GET my orders (buyer)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/orders/mine",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "200 OK. Copy an id into order_id.",
+      "metaSortKey": 10,
+      "body": {}
+    },
+    {
+      "_id": "req_11",
+      "_type": "request",
+      "parentId": "fld_orders",
+      "name": "GET orders received (farmer)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/orders/received",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "200 OK.",
+      "metaSortKey": 11,
+      "body": {}
+    },
+    {
+      "_id": "req_12",
+      "_type": "request",
+      "parentId": "fld_orders",
+      "name": "PATCH order status",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/api/orders/{{ _.order_id }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "Farmer: accepted or declined. Buyer: cancelled. 200 OK, then 409 Conflict if you send it again.",
+      "metaSortKey": 12,
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"status\": \"accepted\"\n}"
+      }
+    }
+  ]
+}

@@ -3,7 +3,6 @@
 // Firestore transaction (server/orders.js), because another buyer may have ordered in the meantime.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useCart } from "../context/CartContext";
 import { placeOrders } from "../services/ordersService";
 import { formatPeso } from "../constants";
 import ErrorMessage from "../components/ErrorMessage";
@@ -16,8 +15,8 @@ function checkItem(item) {
   return "";
 }
 
-function Cart() {
-  const { items, changeQuantity, removeFromCart, clearCart } = useCart();
+// cart and setCart are props from App.js
+function Cart({ cart, setCart }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [sentCount, setSentCount] = useState(0); // how many orders were sent (0 = none yet)
@@ -26,20 +25,30 @@ function Cart() {
     document.title = "Cart · AgosUgnayan Web";
   }, []);
 
+  // Change the kilos of one item (the number box)
+  function changeQuantity(listingId, quantityKg) {
+    setCart(cart.map((item) => (item.listing.id === listingId ? { listing: item.listing, quantityKg: quantityKg } : item)));
+  }
+
+  // Remove one item: keep every item except this one
+  function removeFromCart(listingId) {
+    setCart(cart.filter((item) => item.listing.id !== listingId));
+  }
+
   // The total of the whole cart: add up kilos × price of every item with reduce()
-  const total = items.reduce((sum, item) => sum + (item.quantityKg || 0) * item.listing.pricePerKg, 0);
-  const hasProblem = items.some((item) => checkItem(item) !== "");
+  const total = cart.reduce((sum, item) => sum + (item.quantityKg || 0) * item.listing.pricePerKg, 0);
+  const hasProblem = cart.some((item) => checkItem(item) !== "");
 
   async function handleCheckout() {
     setSending(true);
     setError("");
     try {
-      const orders = await placeOrders(items); // CREATE: POST /api/orders
-      clearCart();
+      const orders = await placeOrders(cart); // CREATE: POST /api/orders -> 201 Created
+      setCart([]); // the orders are sent, so empty the cart
       setSentCount(orders.length);
     } catch (err) {
       console.error(err);
-      setError(err.message); // like "Only 3 kg of Tomato from Ana Reyes is left. Lower the quantity."
+      setError(err.message); // 409 Conflict, like "Only 3 kg of Tomato from Ana Reyes is left. Lower the quantity."
     } finally {
       setSending(false);
     }
@@ -60,7 +69,7 @@ function Cart() {
       )}
       {error && <ErrorMessage message={error} />}
 
-      {items.length === 0 ? (
+      {cart.length === 0 ? (
         <div className="empty">
           <p>Your cart is empty.</p>
           <Link to="/marketplace" className="btn btn-primary">
@@ -70,7 +79,7 @@ function Cart() {
       ) : (
         <div className="card cart">
           <ul className="cart-list">
-            {items.map((item) => {
+            {cart.map((item) => {
               const { listing } = item;
               const problem = checkItem(item);
               const inputId = `cart-kilos-${listing.id}`;

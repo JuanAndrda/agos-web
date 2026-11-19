@@ -41,8 +41,8 @@ Since Nov 15, **every listing request goes through our Express server**. React n
 **A. Someone logs in**
 1. `pages/Login.js` checks the form, then calls `login(email, password)` from `services/authService.js`.
 2. The service asks **Firebase Authentication** to check the password.
-3. Firebase "rings the doorbell" in `context/AuthContext.js` (`onAuthStateChanged`). The context reads the person's name and role from the `users` collection in **Firestore**.
-4. Every page can now read the person with `useAuth()`. The Login page sees `user` and moves to `/prices`.
+3. Firebase "rings the doorbell" in `App.js` (`onAuthStateChanged`). App.js reads the person's name and role from the `users` collection in **Firestore** and saves them with `setUser(...)`.
+4. App.js passes `user` to the pages as a **prop**, like `<Login user={user} />`. The Login page sees `user` and moves to `/prices`.
 
 **B. A farmer opens Market Prices**
 1. `pages/MarketPrices.js` opens, and `useEffect` calls `getPrices("")` from `services/pricesService.js`.
@@ -54,11 +54,11 @@ Since Nov 15, **every listing request goes through our Express server**. React n
 **C. A farmer posts a crop**
 1. `pages/MyListings.js` shows `components/ListingForm.js`. The form checks every field first.
 2. My Listings calls `addListing(form)` from `services/listingsService.js`.
-3. The service asks Firebase for the person's **login token** (`getIdToken()`), a long code that proves who they are. It sends `POST /api/listings` to **our Express server**, with the form as JSON and the token in the `Authorization` header.
+3. The service asks Firebase for the person's **login token** (`getIdToken()`), a long code that proves who they are. It calls `fetch("/api/listings", { method: "POST", headers, body })` to **our Express server**, with the form as JSON in the body and the token in the `Authorization` header.
 4. On the server, `requireLogin` (`server/auth.js`) checks the token with Firebase Admin and reads the person's role. `requireFarmer` stops buyers with **403**.
 5. `server/listings.js` checks every field again, because anyone could send a request without our form. Wrong data gets **400** with the problems in plain words.
 6. The server saves the listing in **Firestore**. It fills in `ownerId`, `ownerName` and `createdAt` itself, so nobody can post in someone else's name. It answers **201 Created** with the saved listing.
-7. The page shows "Your Tomato listing is posted."
+7. `readResponse()` (`services/readResponse.js`) sees status **201** and gives the listing back. The page shows "Your Tomato listing is posted." If the status was 400 or 403, `readResponse()` throws an Error with the server's message instead, and the form shows it.
 
 ---
 
@@ -123,7 +123,7 @@ A **middleware** is a function that runs **before** the route. It either lets th
 - `requireFarmer`: if `req.user.role` isn't `"farmer"`, it answers **403** "Only farmers can do this."
 
 ### `server/listings.js`: our listings API
-Read each endpoint top to bottom: check who it is → check the data → use the database → answer with a status code and JSON.
+Read each endpoint top to bottom: check who it is → check the data → use the database → answer with a status code and JSON, written out every time: `res.status(201).json(...)`. Each endpoint has its own `try / catch`: if Firestore fails, the `catch` answers **500**.
 
 | Method and address | What it does | Who can use it | Possible answers |
 |---|---|---|---|
@@ -163,9 +163,17 @@ Decides which page shows for each URL, with `BrowserRouter`, `Routes` and `Route
 | `/crops/:cropName` | Crop Details (`:cropName` is read from the URL) | Logged-in users |
 | `/marketplace` | Marketplace | Logged-in users |
 | `/my-listings` | My Listings | Farmers only |
+| `/cart` | Cart | Buyers only |
+| `/orders` | Orders | Logged-in users |
 | anything else | goes to `/` (Home) | |
 
 If `client/.env` is missing, App.js shows "Firebase keys are missing" and how to fix it, instead of a blank page.
+
+App.js also keeps the two things many pages need, with `useState`:
+- `user`: who is logged in (`{ uid, email, name, role }`, or `null`). `onAuthStateChanged` in a `useEffect` is like a doorbell: Firebase rings it when someone logs in or out, and `loadUser()` reads their name and role from Firestore. `checkingLogin` is `true` until Firebase answers, so pages don't flash the login screen. `refreshUser()` reads the profile again; Register needs it because the name and role are saved a moment after Firebase logs the new person in.
+- `cart`: the buyer's cart, a list like `[{ listing, quantityKg: 5 }]`. It empties when someone logs in or out, and on a page reload.
+
+They go down to the pages as **props**: `<Marketplace user={user} cart={cart} setCart={setCart} />`. A page that needs to change the cart gets `setCart` too.
 
 ### `src/App.css`: the styles
 All colors and fonts are saved as variables at the top (`--leaf`, `--leaf-dark`, `--harvest`...), so the look stays consistent and one change updates the whole app. The file is split into sections with titles, like `/* ---------- Navbar ---------- */`, in the same order as the screen: top bar, buttons, forms, page banner, Home, Log in, tables, listing cards. At the bottom, `@media (max-width: ...)` rules adjust the layout for tablets and phones (responsive design). See section 13 for the Nov 17 redesign.
@@ -178,24 +186,20 @@ Reads the keys from `.env`, starts Firebase with `initializeApp`, and exports `a
 
 It also has one small helper, `formatPeso(1500)`, which gives `"1,500.00"`: two decimals and a comma every 3 digits, the way people in the Philippines read prices. Market Prices, Crop Details and the listing cards all use it, so prices look the same everywhere.
 
-### `src/context/AuthContext.js`: who is logged in
-- **What a context is:** data that many pages need, shared without passing it from page to page.
-- `onAuthStateChanged` is like a doorbell: Firebase rings it when someone logs in or out. We then read their profile (`name`, `role`) from Firestore.
-- `loading` is `true` until Firebase answers, so pages don't flash the login screen.
-- `refreshUser()` reads the profile again. Register needs it because the name and role are saved a moment after Firebase logs the new person in.
-- Any page uses it with `const { user } = useAuth();`.
-
 ### `src/services/`: every API call
 | File | Talks to | Functions |
 |---|---|---|
 | `authService.js` | Firebase Auth + `users` collection | `register`, `login`, `logout`, `getProfile`, `friendlyAuthError` |
-| `listingsService.js` | Our Express server | `getAvailableListings` → `GET /api/listings` and `getMyListings` → `GET /api/listings/mine` (Read), `addListing` → `POST` (Create), `updateListing` and `markSold` → `PATCH /api/listings/:id` (Update), `deleteListing` → `DELETE /api/listings/:id` (Delete), `friendlyListingError` |
+| `listingsService.js` | Our Express server | `getAvailableListings` → `GET /api/listings` and `getMyListings` → `GET /api/listings/mine` (Read), `addListing` → `POST` (Create), `updateListing` and `markSold` → `PATCH /api/listings/:id` (Update), `deleteListing` → `DELETE /api/listings/:id` (Delete) |
+| `ordersService.js` | Our Express server | `placeOrders` → `POST /api/orders`, `getMyOrders` → `GET /api/orders/mine`, `getReceivedOrders` → `GET /api/orders/received`, `setOrderStatus` → `PATCH /api/orders/:id` |
+| `readResponse.js` | (no API) | `readResponse(response)`: checks the status code of every answer from our server |
 | `pricesService.js` | Our Express server | `getPrices(search)` → `GET /api/prices`, `getPriceHistory(crop)` → `GET /api/prices/:crop` |
-| `wikipediaService.js` | Wikipedia | `getCropInfo(cropName)` → `{ title, description, photo, link }`, and `getCropPhotos(crops)`, which gets many photos at the same time with `Promise.all` (Home and Market Prices use it) |
+| `wikipediaService.js` | Wikipedia | `getCropInfo(cropName)` → `{ title, description, photo, link }`, and `getCropPhotos(crops)`, which gets the photos one after another with a `for` loop (Home and Market Prices use it) |
 
 Two details to point out:
-- **Friendly errors:** Firebase sends codes like `auth/invalid-credential`. `friendlyAuthError` turns them into "Wrong email or password." Our own server already answers in plain words (like "Only farmers can do this."), so `friendlyListingError` simply shows that message.
-- **The login token:** `listingsService.js` has one helper, `callServer`, that every listings function uses. It gets the token with `auth.currentUser.getIdToken()` and sends it as `Authorization: Bearer <token>`. Firebase renews the token by itself every hour. It also turns "server not running" and "no internet" into clear messages, the same way `pricesService.js` does.
+- **Friendly errors:** Firebase sends codes like `auth/invalid-credential`. `friendlyAuthError` turns them into "Wrong email or password." Our own server already answers in plain words (like "Only farmers can do this."), so the pages simply show `err.message`.
+- **Every request is a plain `fetch()`:** each function in `listingsService.js` and `ordersService.js` gets the token with `auth.currentUser.getIdToken()`, then calls `fetch()` with the **method** (GET, POST, PATCH, DELETE), the **headers** (`Authorization: Bearer <token>`, and `Content-Type: application/json` when there is a body) and the **body** (`JSON.stringify(...)`, only for POST and PATCH). Firebase renews the token by itself every hour. See section 15.
+- **Reading the answer:** every function ends with `return readResponse(response)`. It reads the JSON, then checks `response.status` one code at a time: 200 and 201 give the data back; 400, 401, 403, 404, 409 and 500 throw an Error with the server's message. If the answer isn't JSON, our server isn't running, and it says so.
 - **Wikipedia titles:** some crop names aren't Wikipedia page titles, so `WIKI_TITLES` says which page to use (Pechay → "Bok choy", Ampalaya → "Momordica charantia", Squash → "Calabaza", and so on). These are the same pages Agos uses.
 
 ### `src/layouts/MainLayout.js`
@@ -205,26 +209,29 @@ The frame every page sits in: `Navbar`, then the page (`children`), then `Footer
 | File | What it does |
 |---|---|
 | `Logo.js` | Our small leaf logo, drawn with SVG code instead of an image file. It uses `currentColor`, so it takes the color of the text around it. |
-| `PriceChart.js` | The line chart on Crop Details, drawn with SVG, no chart library. A `ResizeObserver` measures the box so the chart fills it. Each price becomes a point (`xOf` for left-right by month, `yOf` for up-down by price), and the line is an SVG `path` ("M" moves the pen, "L" draws to the next point). Each point is a button: click it, point at it, or Tab to it and press Enter, and the line above the chart shows that month's price and how it changed from the month before. |
+| `PriceChart.js` | The line chart on Crop Details, drawn with SVG, no chart library. It measures the box when the page opens and again on every window `resize` event, so the chart fills it. Each price becomes a point (`xOf` for left-right by month, `yOf` for up-down by price), and the line is an SVG `path` ("M" moves the pen, "L" draws to the next point). Each point is a button: click it, point at it, or Tab to it and press Enter, and the line above the chart shows that month's price and how it changed from the month before. |
 | `AuthPanel.js` | The green welcome panel on the left of Log in and Register (the split screen). Both pages share it. |
 | `Navbar.js` | The white top bar (green before Nov 17). When nobody is logged in it shows Log in and Create account. Uses `NavLink`, which highlights the page you're on. Shows My Listings only to farmers, plus the person's name, role and Log out. A long name is cut short with "…" so the bar stays tidy, and the full name shows when you point at it (the `title` attribute). Moving between pages doesn't reload the page, so our app is a single-page application (SPA). |
 | `Footer.js` | Says where our data comes from (PSA, monthly, not real-time; Wikipedia). |
 | `Loading.js` | A spinner and text while we wait for an API. |
 | `ErrorMessage.js` | A red box with the problem and a "Try again" button. |
 | `ProtectedRoute.js` | A guard. Not logged in → `/login`. A buyer opening My Listings → `/marketplace`. |
-| `SearchBar.js` | A labelled search box. With `onSubmit` it has a Search button (Market Prices); without it, the page filters as you type (Marketplace). |
+| `AddToCart.js` | The "kilos + Add to cart" box on each Marketplace card (buyers). Gets `cart` and `setCart` as props. |
+| `SearchBar.js` | A labelled search box (the page gives it an `id`, which connects the label to the box). With `onSubmit` it has a Search button (Market Prices); without it, the page filters as you type (Marketplace). |
 | `ListingCard.js` | One listing as a card: crop, price, kilos, town, harvest date, farmer, contact number, notes, and "Available" or "Sold" written in words (not color alone). The number is a `tel:` link, so on a phone one tap opens the phone app to call or text. `formatPhone` writes it as "0917 123 4567" so it's easy to read. My Listings adds its buttons as `children`, and hides the Farmer and Contact lines with `showFarmer={false}` (every listing there is your own). |
-| `ListingForm.js` | The post and edit form. `checkForm` explains every wrong field ("Choose your town."). The Contact number must be a Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX); `cleanNumber` removes spaces and dashes first, so "0917-123 4567" is fine. The edit form also has a Status field, so a farmer can change "Sold" back to "Available". It scrolls into view when it opens. After a failed save, a `useEffect` puts the cursor in the first wrong field, which helps keyboard and screen reader users. |
+| `ListingForm.js` | The post and edit form. `checkForm` explains every wrong field ("Choose your town."). The Contact number must be a Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX); `cleanNumber` removes spaces and dashes first, so "0917-123 4567" is fine. The edit form also has a Status field, so a farmer can change "Sold" back to "Available". It scrolls into view when it opens. After a failed save, `handleSubmit` puts the cursor in the first wrong field, which helps keyboard and screen reader users. |
 
 ### `src/pages/`: one file per screen
-Every page that uses an API follows the same pattern. **State** for the data, loading and error → **`useEffect`** to load when the page opens → call a **service** → show **loading, error, empty, or the data**. Once you understand one page, the others read the same way.
+Every page that uses an API follows the same pattern, the same as `fetchDogs()` in our Firebase class activity. **State** for the data, loading and error → a plain **`async function loadSomething()`** with `try / catch / finally` → **`useEffect(() => { loadSomething(); }, [])`** runs it once when the page opens → show **loading, error, empty, or the data**. The "Try again" button calls the same function. Once you understand one page, the others read the same way.
+
+(The line `// eslint-disable-next-line react-hooks/exhaustive-deps` above `}, []);` tells React's code checker "yes, we really want this to run only once". Without it, `npm run build` shows a warning.)
 
 Every page also sets the name in the browser tab, like "Market Prices · AgosUgnayan Web", with one small `useEffect` that changes `document.title`.
 
-- **`Home.js`** (Nov 17): the landing page at `/`. Anyone can open it. A big welcome box (the "hero"), one tile per crop with its newest PSA price (`GET /api/prices`, which needs no login) and its Wikipedia photo (`getCropInfo`, the same as Crop Details), and "How it works" in 3 steps. `getCropPhotos` (in `wikipediaService.js`) asks Wikipedia for all the photos at the same time with `Promise.all`; if one photo fails, that tile shows the crop's first letter instead.
+- **`Home.js`** (Nov 17): the landing page at `/`. Anyone can open it. A big welcome box (the "hero"), one tile per crop with its newest PSA price (`GET /api/prices`, which needs no login) and its Wikipedia photo (`getCropInfo`, the same as Crop Details), and "How it works" in 3 steps. `getCropPhotos` (in `wikipediaService.js`) asks Wikipedia for the photos one after another; if one photo fails, that tile shows the crop's first letter instead.
 - **`Login.js`**: email and password. Checks that both are filled, calls `login()`, and shows Firebase errors in plain words.
 - **`Register.js`**: name, email, password (6+ characters) and a Farmer/Buyer choice. `checkForm()` finds every problem at once and shows each one under its own field, the same way as the listing form, then puts the cursor in the first one. Calls `register()`, then `refreshUser()`.
-- **`MarketPrices.js`**: the newest PSA farmgate price of each crop, with search. Since Nov 17 each crop is a clickable card with its Wikipedia photo, price and month; clicking it opens Crop Details. Above the cards, 3 summary boxes show the lowest price, the highest price and how many crops are shown. They are worked out in React with `reduce()` from the same prices, so there is no extra API call. Always shows the source ("PSA OpenSTAT"), the month of each price, and when our server last checked PSA, written as "Nov 5, 2026, 2:14 AM" so nobody mixes up the day and the month. `useCallback` keeps `loadPrices` the same between redraws, so `useEffect` runs only once.
+- **`MarketPrices.js`**: the newest PSA farmgate price of each crop, with search. Since Nov 17 each crop is a clickable card with its Wikipedia photo, price and month; clicking it opens Crop Details. Above the cards, 3 summary boxes show the lowest price, the highest price and how many crops are shown. They are worked out in React with `reduce()` from the same prices, so there is no extra API call. Always shows the source ("PSA OpenSTAT"), the month of each price, and when our server last checked PSA, written as "Nov 5, 2026, 2:14 AM" so nobody mixes up the day and the month.
 - **`CropDetails.js`**: uses two APIs at the same time. It finds the crop whatever the capital letters are, so `/crops/tomato` also works. The left card is Wikipedia (photo and description). The right card is our server (`GET /api/prices/Tomato`): since Nov 17 it shows 3 boxes (latest price, previous month, and the change up or down in pesos and %), then a line chart of the last 12 months (`PriceChart.js`). The table is still there behind "Show all months as a table" (a `<details>` element, which opens and closes without any JavaScript). Each card has its own loading and error, so if Wikipedia is down, the prices still show.
 - **`Marketplace.js`**: loads every available listing once from our server (`GET /api/listings`), then searches, filters (town, min and max price) and sorts (newest, price low→high, high→low) in React with `.filter()` and `.sort()`. Shows "Showing 2 of 5 listings" and a Clear filters button. If the max price is lower than the min price, it says so under the Max field instead of just showing "no listings". The filters stay in React, not on the server, so the results change instantly while you type, with no waiting.
 - **`MyListings.js`**: the farmer's own listings with all of CRUD, each one a request to our server. **Post a crop** (Create, `POST`), the list (Read, `GET /mine`), **Edit** and **Mark as sold** (Update, `PATCH`), **Delete** (`DELETE`). Delete asks "This can't be undone" first. Every action shows a success or error message, and the buttons are disabled while it saves.
@@ -432,7 +439,7 @@ Three new features, built on top of the redesign. Juan approved them on Nov 17, 
 
 **The Firestore transaction (the important part).** Two buyers could order the last 5 kg at the same moment. Without a transaction both would read "5 kg left", both would pass the check, and we would sell 10 kg. `adminDb.runTransaction()` fixes this:
 - **Read** all the listings first (`transaction.getAll`).
-- **Check** them. If one fails, we `throw`, and **nothing** is saved, not even the other items in the cart.
+- **Check** them. If one fails, we `return { status: 409, error: "..." }` before any write, so **nothing** is saved, not even the other items in the cart. After the transaction, the route answers with that status.
 - **Write** everything together: lower each stock (`transaction.update`) and save each order (`transaction.set`).
 - If someone else changed a listing between our read and our write, Firestore runs our code again with the new numbers. So only one buyer gets the last kilos and the other gets a 409. (We tested this with two buyers at once.)
 
@@ -448,12 +455,12 @@ Three new features, built on top of the redesign. Juan approved them on Nov 17, 
 ### Part 3: the cart (React)
 | File | What it does |
 |---|---|
-| `context/CartContext.js` | New. Keeps the cart in React state, like `AuthContext.js` keeps the user. `addToCart`, `changeQuantity`, `removeFromCart`, `clearCart`. The cart empties when someone else logs in. It isn't saved anywhere, so a page reload empties it too. |
+| `App.js` (since Nov 19; was `context/CartContext.js`) | Keeps the cart in React state (`const [cart, setCart] = useState([])`) and passes it to pages as props. The cart empties when someone else logs in. It isn't saved anywhere, so a page reload empties it too. |
 | `components/AddToCart.js` | New. The "kilos + Add to cart" box on each Marketplace card. Checks: whole kilos, more than 0, and not more than what's left (it counts what's already in your cart). |
 | `pages/Cart.js` | New. Change kilos, remove, the total (`reduce()`), and **Send order request** → `POST /api/orders`. If the server says no (for example someone else bought first), its message is shown and the cart stays. |
 | `pages/Marketplace.js` | Buyers get `<AddToCart>` on each card. Farmers get no box, and their own listings say "This is your listing". |
 | `components/Navbar.js` | A cart button with the number of items (buyers only), and an **Orders** link (everyone). |
-| `App.js` | `<CartProvider>` around the app, and the routes `/cart` (`<ProtectedRoute role="buyer">`, so a farmer is sent to the Marketplace) and `/orders`. |
+| `App.js` | The routes `/cart` (`<ProtectedRoute role="buyer">`, so a farmer is sent to the Marketplace) and `/orders`. |
 
 **Why check in React AND on the server?** React checks first so the buyer gets a quick message. The server checks again because the stock can change after the page loaded, and because anyone can send a request without our page.
 
@@ -464,7 +471,7 @@ The page shows one list, depending on your role (`isFarmer` in the code):
 - Each button calls `setOrderStatus()` in `services/ordersService.js` → `PATCH /api/orders/:id`, then loads the list again.
 
 ### Other small changes
-- `services/serverApi.js` is new: the "send a request with the login token" code that `listingsService.js` had. Now listings and orders both use it, so it's written once.
+- (Nov 17 only: `services/serverApi.js` sent every listings and orders request. It was removed on Nov 19, see section 15.)
 - `server/index.js` plugs in the orders routes: `app.use("/api/orders", ordersRouter)`.
 - `firestore.rules` locks the new `orders` collection, like listings.
 - On a phone the page links are a little smaller, so a farmer's 4 links fit in one row.
@@ -473,4 +480,40 @@ The page shows one list, depending on your role (`isFarmer` in the code):
 **What Juan does once:** paste the new `firestore.rules` into the Firebase Console and click Publish. The app works without this step (our server uses Firebase Admin, which skips the rules), but publishing it stops anyone from reading orders straight from the browser.
 
 **Tested** on the Firebase emulators: 45 API checks (every status code above, farmers blocked from ordering, the all-or-nothing cart, two buyers racing for the same kilos, decline and cancel putting kilos back) and 33 browser checks on a laptop and a phone size, with stand-in PSA prices. `npm run build` has no warnings.
+
+---
+
+## 15. Simpler code, closer to our class activities (Nov 19)
+
+**Why:** so every group member can explain the code. The focus is how we use APIs: the HTTP **methods**, the **response**, and the **status codes**. Nothing the user sees changed, and every endpoint and its URL is the same.
+
+**What changed in React (`client/src`):**
+| Before | Now | Like which class activity |
+|---|---|---|
+| One hidden helper `services/serverApi.js` (`callServer`) sent every request | Each function in `listingsService.js` and `ordersService.js` writes its own `fetch(url, { method, headers, body })` | Dog API app (`fetch(...)`) and Activity 8 (choosing GET, POST, PATCH, DELETE in Insomnia) |
+| Only "ok or not ok" | New `services/readResponse.js` checks `response.status`: 200, 201, 400, 401, 403, 404, 409, 500, each with a comment saying what it means | The status box in Insomnia (Activity 8) |
+| `useCallback(async () => {...}, [])` on 6 pages | A plain `async function loadListings() { try / catch / finally }`, called from `useEffect(..., [])` | `fetchDogs()` in the Firebase activity |
+| `context/AuthContext.js` and `context/CartContext.js`, with the custom hooks `useAuth()` and `useCart()` | `user` and `cart` live in `App.js` with `useState` and go down to pages as **props** | Layouts and components with props (React lesson) |
+| `useRef`, `useId`, `ResizeObserver` | `document.getElementById(...)`, an `id` prop, and a window `resize` event | Plain JavaScript |
+| `data.thumbnail?.source`, `...(editing && { status })`, `Promise.all` | Plain `if` statements and a `for` loop | Plain JavaScript |
+
+**What changed on the server (`server/`):**
+- Every route answers with `res.status(...).json(...)`, so the status code is always written out, even 200.
+- Every route that uses Firestore has its own `try / catch`; the `catch` answers **500** with a clear message.
+- `orders.js` no longer uses `problem()` and `sendProblem()` (a function that throws an Error with a status). The transaction now **returns** `{ status: 409, error: "..." }`, and the route answers with it. Easier to follow.
+- `auth.js`: comments explain the difference between **401** (we don't know who you are) and **403** (we know who you are, but you're not allowed).
+- `psa.js` did not change. Its logic is tested against the real PSA and easy to break.
+
+**How a request and its status code travel (example: a buyer orders 11 kg, but only 10 kg are left):**
+1. `Cart.js` calls `placeOrders(cart)`.
+2. `ordersService.js` sends `fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer <token>" }, body: JSON.stringify({ items }) })`.
+3. `server/auth.js`: the token is real (else **401**) and the person is a buyer (else **403**).
+4. `server/orders.js`: the transaction reads the listing, sees only 10 kg, and returns `{ status: 409, error: "Only 10 kg of Tomato from Ana Reyes is left. Lower the quantity." }`. Nothing is saved.
+5. The route answers `res.status(409).json({ error: "..." })`.
+6. `readResponse()` in React sees `response.status === 409` and throws an Error with that message.
+7. `Cart.js` catches it (`catch (err) { setError(err.message) }`) and shows it in the red box.
+
+**Insomnia, like Activity 8:** `insomnia/agos-web-api.json` has every endpoint of our server, ready to import (Insomnia → Import → choose the file). First run **0. Login → Get a login token** (it uses Firebase's own login API with the `firebase_api_key` from `client/.env`), copy the `idToken` into the `token` variable, then try the others. Each request's description says which status codes to try, for example remove the `Authorization` header to see **401**, or send the same DELETE twice to see **404**.
+
+**Tested** on the Firebase emulators: 39 API checks (every status code above, including the all-or-nothing cart and kilos going back after a cancel) and 28 browser checks (register, log in, prices, crop details, post, edit, mark sold, delete, add to cart, checkout, accept, cancel, log out), with stand-in PSA prices and Wikipedia photos. `npm run build` has no warnings.
 

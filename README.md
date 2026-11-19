@@ -111,7 +111,6 @@ agos-web/
 │       ├── index.js, App.js, App.css
 │       ├── firebase.js       ← connects to Firebase
 │       ├── constants.js      ← the crop and town lists
-│       ├── context/          ← who is logged in, and the cart
 │       ├── services/         ← EVERY API call lives here
 │       ├── layouts/          ← Navbar + page + Footer
 │       ├── components/       ← reusable pieces
