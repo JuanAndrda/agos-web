@@ -1,6 +1,9 @@
 // MarketPrices.js: the newest farmgate price of each crop in Iloilo, from PSA through our server.
 // Every API page has the same three states: loading, error and data (plus "empty" when there's no data).
 // Each crop is a card with its Wikipedia photo. Clicking a card opens that crop's Crop Details page.
+// With about 100 crops, the cards are GROUPED by category (Fruit vegetables, ... Fruits), and the
+// category buttons at the top show only one group. A crop whose newest PSA price is from an
+// earlier month than the others says "older price", so nobody reads it as this month's price.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getPrices } from "../services/pricesService";
@@ -8,7 +11,8 @@ import { getCropPhotos } from "../services/wikipediaService";
 import SearchBar from "../components/SearchBar";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
-import { CROPS, formatPeso } from "../constants";
+import { formatPeso, cropLink } from "../constants";
+import { groupByCategory } from "../services/cropsService";
 
 function MarketPrices() {
   const [prices, setPrices] = useState([]);
@@ -19,6 +23,8 @@ function MarketPrices() {
   const [search, setSearch] = useState(""); // what is typed in the box
   const [searched, setSearched] = useState(""); // the search the cards are showing
   const [photos, setPhotos] = useState({}); // like { Tomato: "https://upload.wikimedia.org/..." }
+  const [categories, setCategories] = useState([]); // the category names, in order
+  const [category, setCategory] = useState(""); // the category button that is on ("" = all)
 
   // The name in the browser tab
   useEffect(() => {
@@ -33,9 +39,16 @@ function MarketPrices() {
     try {
       const data = await getPrices(text); // GET /api/prices?search=text
       setPrices(data.prices);
+      setCategories(data.categories);
       setCheckedAt(data.checkedAt);
       setStale(data.stale);
       setSearched(text);
+      setCategory(""); // a new search shows every category again
+      // The first time, also GET the photos from Wikipedia (all at the same time, see
+      // getCropPhotos). A later search doesn't load them again.
+      if (Object.keys(photos).length === 0) {
+        getCropPhotos(data.prices.map((p) => p.crop)).then((result) => setPhotos(result));
+      }
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -44,23 +57,30 @@ function MarketPrices() {
     }
   }
 
-  // When the page opens ([] = only once): load all prices, and the photos of all 10 crops from
-  // Wikipedia. A search loads new prices, but not the photos again.
+  // When the page opens ([] = only once): load all prices. loadPrices() then gets the photos.
   useEffect(() => {
     loadPrices("");
-    getCropPhotos(CROPS).then((result) => setPhotos(result));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function showAll() {
     setSearch("");
+    setCategory("");
     loadPrices("");
   }
 
-  // The cheapest and the most expensive crop in the list, for the summary boxes.
+  // The cards we show: all crops, or only the chosen category. Then group them by category.
+  const shown = prices.filter((p) => category === "" || p.category === category);
+  const groups = groupByCategory(categories, shown);
+
+  // How many crops each category button has, like { Fruits: 47, Beans: 10 }
+  const countOf = {};
+  for (const p of prices) countOf[p.category] = (countOf[p.category] || 0) + 1;
+
+  // The cheapest and the most expensive crop that is shown, for the summary boxes.
   // reduce() goes through the list once and keeps the lowest (or highest) one it has seen.
-  const lowest = prices.length > 0 ? prices.reduce((a, b) => (b.pricePerKg < a.pricePerKg ? b : a)) : null;
-  const highest = prices.length > 0 ? prices.reduce((a, b) => (b.pricePerKg > a.pricePerKg ? b : a)) : null;
+  const lowest = shown.length > 0 ? shown.reduce((a, b) => (b.pricePerKg < a.pricePerKg ? b : a)) : null;
+  const highest = shown.length > 0 ? shown.reduce((a, b) => (b.pricePerKg > a.pricePerKg ? b : a)) : null;
 
   return (
     <section>
@@ -95,22 +115,43 @@ function MarketPrices() {
 
       {!loading && !error && prices.length > 0 && (
         <>
+          {/* Category buttons: show all crops, or one group. aria-pressed tells screen readers which is on. */}
+          <div className="category-chips" role="group" aria-label="Show a category">
+            <button type="button" className="chip" aria-pressed={category === ""} onClick={() => setCategory("")}>
+              All <span>{prices.length}</span>
+            </button>
+            {categories
+              .filter((name) => countOf[name])
+              .map((name) => (
+                <button key={name} type="button" className="chip" aria-pressed={category === name} onClick={() => setCategory(name)}>
+                  {name} <span>{countOf[name]}</span>
+                </button>
+              ))}
+          </div>
+
           {/* Summary boxes: worked out in React from the same prices, no extra API call */}
           <div className="price-summary">
-            <Link to={`/crops/${lowest.crop}`} className="summary-box">
+            <Link to={cropLink(lowest.crop)} className="summary-box">
               <span>Lowest price</span>
               <strong>₱{formatPeso(lowest.pricePerKg)}</strong>
-              <small>{lowest.crop} · per kg</small>
+              <small>
+                {lowest.crop} · per kg · {lowest.month}
+              </small>
             </Link>
-            <Link to={`/crops/${highest.crop}`} className="summary-box">
+            <Link to={cropLink(highest.crop)} className="summary-box">
               <span>Highest price</span>
               <strong>₱{formatPeso(highest.pricePerKg)}</strong>
-              <small>{highest.crop} · per kg</small>
+              <small>
+                {highest.crop} · per kg · {highest.month}
+              </small>
             </Link>
             <div className="summary-box">
               <span>Crops shown</span>
-              <strong>{prices.length}</strong>
-              <small>{searched ? `matching "${searched}"` : "all crops PSA tracks"}</small>
+              <strong>{shown.length}</strong>
+              <small>
+                {category || "all categories"}
+                {searched ? ` · matching "${searched}"` : ""}
+              </small>
             </div>
           </div>
 
@@ -131,6 +172,8 @@ function MarketPrices() {
               </>
             )}
             PSA updates these prices once a month, a few months late. They are a guide, not today's price.
+            Each card shows the month of its price. "Older price" means PSA has no price for that crop in
+            its newest month, so we show the last month it had one.
             {checkedAt &&
               ` Last checked from PSA: ${new Date(checkedAt).toLocaleString("en-PH", {
                 dateStyle: "medium", // "Nov 5, 2026", so nobody mixes up the day and the month
@@ -138,28 +181,38 @@ function MarketPrices() {
               })}.`}
           </p>
 
-          {/* One card per crop. The whole card is a link, so it's easy to click or tap. */}
-          <div className="price-grid">
-            {prices.map((p) => (
-              <Link key={p.crop} to={`/crops/${p.crop}`} className="price-card">
-                {photos[p.crop] ? (
-                  <img src={photos[p.crop]} alt="" />
-                ) : (
-                  <span className="price-card-letter" aria-hidden="true">
-                    {p.crop[0]}
-                  </span>
-                )}
-                <span className="price-card-body">
-                  <strong className="price-card-name">{p.crop}</strong>
-                  <span className="price-card-price">
-                    ₱{formatPeso(p.pricePerKg)} <small>per kg</small>
-                  </span>
-                  <span className="price-card-month">{p.month}</span>
-                  <span className="price-card-more">View price history →</span>
-                </span>
-              </Link>
-            ))}
-          </div>
+          {/* One section per category, one card per crop. The whole card is a link, so it's easy to tap. */}
+          {groups.map((group) => (
+            <div key={group.category} className="price-group">
+              <h2 className="price-group-title">
+                {group.category} <span className="muted">({group.crops.length})</span>
+              </h2>
+              <div className="price-grid">
+                {group.crops.map((p) => (
+                  <Link key={p.crop} to={cropLink(p.crop)} className="price-card">
+                    {photos[p.crop] ? (
+                      <img src={photos[p.crop]} alt="" loading="lazy" />
+                    ) : (
+                      <span className="price-card-letter" aria-hidden="true">
+                        {p.crop[0]}
+                      </span>
+                    )}
+                    <span className="price-card-body">
+                      <strong className="price-card-name">{p.crop}</strong>
+                      <span className="price-card-price">
+                        ₱{formatPeso(p.pricePerKg)} <small>per kg</small>
+                      </span>
+                      <span className={p.older ? "price-card-month older-month" : "price-card-month"}>
+                        {p.month}
+                        {p.older ? " · older price" : ""}
+                      </span>
+                      <span className="price-card-more">View price history →</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
           <p className="muted small">Photos: Wikipedia</p>
         </>
       )}

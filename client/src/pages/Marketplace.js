@@ -4,9 +4,12 @@
 // results change instantly while you type.
 // Since Nov 17 buyers get an "Add to cart" box on each card (AddToCart.js). Farmers only sell,
 // so they get no box, and their own listings say "This is your listing".
+// Since Nov 20 there are 104 crops, so there is also a Category filter (Fruits, Beans, ...).
+// The category of each crop comes from our crop catalog: GET /api/crops.
 import { useEffect, useState } from "react";
 import { getAvailableListings } from "../services/listingsService";
 import { getCropPhotos } from "../services/wikipediaService";
+import { getCrops } from "../services/cropsService";
 import { TOWNS } from "../constants";
 import SearchBar from "../components/SearchBar";
 import ListingCard from "../components/ListingCard";
@@ -33,6 +36,11 @@ function Marketplace({ user, cart, setCart }) {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [sort, setSort] = useState("newest");
+  const [category, setCategory] = useState("");
+
+  // The crop catalog, only to know each crop's category: { Tomato: "Fruit vegetables", ... }
+  const [categories, setCategories] = useState([]);
+  const [categoryOf, setCategoryOf] = useState({});
 
   // The name in the browser tab
   useEffect(() => {
@@ -65,9 +73,23 @@ function Marketplace({ user, cart, setCart }) {
     setPhotos(await getCropPhotos(crops));
   }
 
-  // Load the listings once, when the page opens
+  // GET /api/crops for the Category filter. If it fails, the filter just stays hidden.
+  async function loadCategories() {
+    try {
+      const data = await getCrops();
+      const map = {};
+      for (const crop of data.crops) map[crop.name] = crop.category;
+      setCategoryOf(map);
+      setCategories(data.categories);
+    } catch (err) {
+      console.error("No categories:", err);
+    }
+  }
+
+  // Load the listings and the categories once, when the page opens
   useEffect(() => {
     loadListings();
+    loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -75,6 +97,7 @@ function Marketplace({ user, cart, setCart }) {
   const text = search.trim().toLowerCase();
   const shown = listings
     .filter((l) => l.crop.toLowerCase().includes(text))
+    .filter((l) => category === "" || categoryOf[l.crop] === category)
     .filter((l) => town === "" || l.town === town)
     .filter((l) => minPrice === "" || l.pricePerKg >= Number(minPrice))
     .filter((l) => maxPrice === "" || l.pricePerKg <= Number(maxPrice));
@@ -84,13 +107,14 @@ function Marketplace({ user, cart, setCart }) {
   if (sort === "price-low") shown.sort((a, b) => a.pricePerKg - b.pricePerKg);
   if (sort === "price-high") shown.sort((a, b) => b.pricePerKg - a.pricePerKg);
 
-  const filtersOn = text !== "" || town !== "" || minPrice !== "" || maxPrice !== "";
+  const filtersOn = text !== "" || category !== "" || town !== "" || minPrice !== "" || maxPrice !== "";
 
   // A max price below the min price can never match anything, so we explain it
   const priceRangeWrong = minPrice !== "" && maxPrice !== "" && Number(maxPrice) < Number(minPrice);
 
   function clearFilters() {
     setSearch("");
+    setCategory("");
     setTown("");
     setMinPrice("");
     setMaxPrice("");
@@ -108,6 +132,17 @@ function Marketplace({ user, cart, setCart }) {
         <SearchBar id="listing-search" label="Search a crop" value={search} onChange={setSearch} placeholder="e.g. eggplant" />
 
         <div className="filter-row">
+          {categories.length > 0 && (
+            <div className="field category-field">
+              <label htmlFor="category-filter">Category</label>
+              <select id="category-filter" value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="">All categories</option>
+                {categories.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="field">
             <label htmlFor="town-filter">Town</label>
             <select id="town-filter" value={town} onChange={(e) => setTown(e.target.value)}>
@@ -117,7 +152,7 @@ function Marketplace({ user, cart, setCart }) {
               ))}
             </select>
           </div>
-          <div className="field">
+          <div className="field price-field">
             <label htmlFor="min-price">Min price per kg (₱)</label>
             <input
               id="min-price"
@@ -128,7 +163,7 @@ function Marketplace({ user, cart, setCart }) {
               onChange={(e) => setMinPrice(e.target.value)}
             />
           </div>
-          <div className="field">
+          <div className="field price-field">
             <label htmlFor="max-price">Max price per kg (₱)</label>
             <input
               id="max-price"

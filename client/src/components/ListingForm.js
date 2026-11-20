@@ -1,9 +1,12 @@
 // ListingForm.js: the form to post a new crop or edit one. It checks every field
 // before saving and explains what to fix. My Listings decides what "save" does.
+// The crop is chosen with CropPicker (search + groups), and the crop list comes from our
+// server's crop catalog: GET /api/crops.
 import { useEffect, useState } from "react";
-import { CROPS, TOWNS, formatPeso } from "../constants";
-import { getPrices } from "../services/pricesService";
+import { TOWNS, formatPeso } from "../constants";
+import { getCrops } from "../services/cropsService";
 import { getCropInfo } from "../services/wikipediaService";
+import CropPicker from "./CropPicker";
 
 const EMPTY_FORM = {
   crop: "",
@@ -25,12 +28,17 @@ function cleanNumber(text) {
 }
 
 // Returns an object with one message per wrong field, like { pricePerKg: "..." }
-function checkForm(form) {
+// "crops" is the crop catalog from our server (null if it didn't load).
+function checkForm(form, crops) {
   const errors = {};
   const quantity = Number(form.quantityKg);
   const price = Number(form.pricePerKg);
 
-  if (!CROPS.includes(form.crop)) errors.crop = "Choose a crop.";
+  if (!crops) {
+    errors.crop = "The crop list didn't load. Press Try again above the form.";
+  } else if (!crops.find((crop) => crop.name === form.crop)) {
+    errors.crop = "Choose a crop from the list.";
+  }
   if (form.quantityKg === "" || !(quantity > 0)) {
     errors.quantityKg = "Enter how many kilos you have, more than 0.";
   } else if (quantity > 100000) {
@@ -58,23 +66,37 @@ function ListingForm({ initialValues, onSave, onCancel, saveText, locked }) {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  // PSA's newest farmgate price of each crop, like { Tomato: { pricePerKg: 48.2, month: "June 2026" } }.
-  // null means "not loaded (yet)". The form still works without it.
-  const [psaPrices, setPsaPrices] = useState(null);
+  // The crop catalog from GET /api/crops: every crop with its category and newest PSA price,
+  // like [{ name: "Tomato", category: "Fruit vegetables", latest: { pricePerKg: 38.81, month: "June 2026" } }].
+  // null means "not loaded (yet)".
+  const [crops, setCrops] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [cropsError, setCropsError] = useState("");
+  const [pricesWorking, setPricesWorking] = useState(true); // false = PSA is down right now
   // The Wikipedia photo of the chosen crop, so the farmer sees it without uploading anything.
   // "" means no photo (yet).
   const [cropPhoto, setCropPhoto] = useState("");
 
-  // Load PSA's prices once when the form opens: GET /api/prices (our Express server asks PSA).
-  // If PSA is down we just don't show a suggestion, because the farmer can still type a price.
+  // Load the crop catalog: GET /api/crops (our Express server adds PSA's newest prices).
+  // If PSA is down, the server still sends every crop (without prices), so the farmer can still
+  // choose any crop and type a price. Only if OUR server is down do we show an error.
+  async function loadCrops() {
+    setCropsError("");
+    try {
+      const data = await getCrops();
+      setCrops(data.crops);
+      setCategories(data.categories);
+      setPricesWorking(data.pricesWorking);
+    } catch (err) {
+      console.error(err);
+      setCropsError(err.message);
+    }
+  }
+
+  // Load the crops once, when the form opens
   useEffect(() => {
-    getPrices()
-      .then((data) => {
-        const byCrop = {};
-        for (const p of data.prices) byCrop[p.crop] = p;
-        setPsaPrices(byCrop);
-      })
-      .catch((err) => console.error("No PSA suggestion:", err));
+    loadCrops();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Whenever the farmer chooses a crop, GET its photo from Wikipedia (the same call Crop Details uses).
@@ -107,6 +129,16 @@ function ListingForm({ initialValues, onSave, onCancel, saveText, locked }) {
     }
   }
 
+  // CropPicker gives us the chosen crop's name
+  function handleCropChange(name) {
+    setForm({ ...form, crop: name });
+    if (errors.crop) {
+      const otherErrors = { ...errors };
+      delete otherErrors.crop; // a crop is chosen now
+      setErrors(otherErrors);
+    }
+  }
+
   // "Use this price" copies PSA's price into the price box. The farmer can still change it.
   function applySuggestedPrice() {
     setForm({ ...form, pricePerKg: String(suggestion.pricePerKg) });
@@ -115,12 +147,13 @@ function ListingForm({ initialValues, onSave, onCancel, saveText, locked }) {
     setErrors(otherErrors);
   }
 
-  // The PSA price of the crop the farmer chose (or undefined if no crop or no prices yet)
-  const suggestion = psaPrices && psaPrices[form.crop];
+  // The chosen crop from the catalog, and its newest PSA price (null when PSA has no recent price)
+  const chosenCrop = crops ? crops.find((crop) => crop.name === form.crop) : undefined;
+  const suggestion = chosenCrop ? chosenCrop.latest : null;
 
   async function handleSubmit(event) {
     event.preventDefault();
-    const problems = checkForm(form);
+    const problems = checkForm(form, crops);
     setErrors(problems);
     // Something needs fixing: put the cursor in the first wrong field, and stop.
     // This helps people who use the keyboard or a screen reader find the problem.
@@ -185,20 +218,28 @@ function ListingForm({ initialValues, onSave, onCancel, saveText, locked }) {
       <div className="form-grid">
         <div className="field">
           <label htmlFor="crop">Crop</label>
-          <select
-            id="crop"
-            name="crop"
-            value={form.crop}
-            onChange={handleChange}
-            disabled={locked}
-            aria-invalid={Boolean(errors.crop)}
-            aria-describedby={errors.crop ? "crop-error" : undefined}
-          >
-            <option value="">Choose a crop</option>
-            {CROPS.map((crop) => (
-              <option key={crop}>{crop}</option>
-            ))}
-          </select>
+          {/* Our searchable, grouped crop list (CropPicker.js). The crop catalog comes from GET /api/crops. */}
+          {cropsError ? (
+            <p className="form-error" role="alert">
+              {cropsError}{" "}
+              <button type="button" className="link-button" onClick={loadCrops}>
+                Try again
+              </button>
+            </p>
+          ) : crops === null ? (
+            <p className="help">Loading the crop list...</p>
+          ) : (
+            <CropPicker
+              id="crop"
+              crops={crops}
+              categories={categories}
+              value={form.crop}
+              onChange={handleCropChange}
+              disabled={locked}
+              invalid={Boolean(errors.crop)}
+              describedBy={errors.crop ? "crop-error" : undefined}
+            />
+          )}
           {fieldError("crop")}
           {cropPhoto && (
             <div className="crop-preview">
@@ -268,6 +309,13 @@ function ListingForm({ initialValues, onSave, onCancel, saveText, locked }) {
                 PSA farmgate price for {form.crop}: <strong>₱{formatPeso(suggestion.pricePerKg)}/kg</strong>{" "}
                 <span className="muted">({suggestion.month})</span>
               </p>
+              {/* "older": PSA has no price for this crop in its newest month, so we say so */}
+              {suggestion.older && (
+                <p className="older-note">
+                  This is an older price. PSA's latest price for {form.crop} is from {suggestion.month}, so check
+                  today's market before you use it.
+                </p>
+              )}
               <button type="button" className="btn btn-secondary btn-small" onClick={applySuggestedPrice} disabled={locked}>
                 Use this price
               </button>
@@ -275,7 +323,11 @@ function ListingForm({ initialValues, onSave, onCancel, saveText, locked }) {
           ) : (
             !errors.pricePerKg && (
               <p id="pricePerKg-help" className="help">
-                {form.crop ? "PSA's price for this crop isn't available right now." : "Choose a crop to see PSA's farmgate price."}
+                {form.crop && !pricesWorking
+                  ? "PSA's prices aren't available right now. You can still type your own price."
+                  : form.crop
+                  ? `PSA has no recent Iloilo price for ${form.crop}. You can still post it with your own price.`
+                  : "Choose a crop to see PSA's farmgate price."}
               </p>
             )
           )}

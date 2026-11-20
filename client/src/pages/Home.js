@@ -1,12 +1,12 @@
 // Home.js: the landing page at "/", the first page a visitor sees. Anyone can open it, even
 // before logging in. It uses two APIs we already have:
-//   1. our server's GET /api/prices (PSA prices), which doesn't need a login
+//   1. our server's GET /api/crops (our crop catalog with PSA prices), which doesn't need a login
 //   2. Wikipedia, for a photo of each crop (getCropPhotos, shared with Market Prices)
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getPrices } from "../services/pricesService";
+import { getCrops } from "../services/cropsService";
 import { getCropPhotos } from "../services/wikipediaService";
-import { TOWNS, formatPeso } from "../constants";
+import { TOWNS, formatPeso, cropLink } from "../constants";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
 
@@ -19,7 +19,8 @@ const STEPS = [
 
 // user is a prop from App.js: null when nobody is logged in
 function Home({ user }) {
-  const [prices, setPrices] = useState([]);
+  const [crops, setCrops] = useState([]); // every crop in our catalog
+  const [popular, setPopular] = useState([]); // the 10 popular crops we show as tiles
   const [photos, setPhotos] = useState({}); // like { Tomato: "https://upload.wikimedia.org/..." }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,11 +36,14 @@ function Home({ user }) {
     setLoading(true);
     setError("");
     try {
-      const data = await getPrices(""); // GET /api/prices -> the newest price of each crop
-      setPrices(data.prices);
+      const data = await getCrops(); // GET /api/crops -> every crop with its newest price
+      // 104 tiles would be too many for the Home page, so we show the 10 "popular" crops.
+      // The rest are on Market Prices.
+      const popularCrops = data.crops.filter((c) => c.popular);
+      setCrops(data.crops);
+      setPopular(popularCrops);
       setLoading(false); // show the tiles now; the photos come after
-      const crops = data.prices.map((p) => p.crop);
-      setPhotos(await getCropPhotos(crops)); // GET Wikipedia, one call per crop
+      setPhotos(await getCropPhotos(popularCrops.map((c) => c.name))); // GET Wikipedia
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -62,7 +66,7 @@ function Home({ user }) {
           <span className="hero-tag">For Iloilo farmers and buyers</span>
           <h1>Fair crop prices, straight from the farm</h1>
           <p>
-            Check this month's farmgate prices from PSA, then buy fresh crops directly from farmers
+            Check PSA's latest farmgate prices, then buy fresh crops directly from farmers
             in your town.
           </p>
           <div className="hero-actions">
@@ -88,7 +92,7 @@ function Home({ user }) {
           </div>
           <div className="hero-stats">
             <p>
-              <strong>{prices.length || 10} crops</strong>
+              <strong>{crops.length || 104} crops</strong>
               <span>tracked by PSA</span>
             </p>
             <p>
@@ -107,8 +111,8 @@ function Home({ user }) {
       {/* 2. Crop tiles: one per crop, with its Wikipedia photo and its newest PSA price */}
       <section className="home-section">
         <div className="section-head">
-          <h2>Browse crops</h2>
-          <Link to="/prices">See all prices</Link>
+          <h2>Popular crops</h2>
+          <Link to="/prices">See all {crops.length || ""} crops</Link>
         </div>
         {!user && <p className="muted small">Log in to open a crop's full price history.</p>}
 
@@ -117,18 +121,19 @@ function Home({ user }) {
 
         {!loading && !error && (
           <div className="crop-tiles">
-            {prices.map((p, i) => (
+            {popular.map((c, i) => (
               // "tile-1" to "tile-6" are 6 soft colors in App.css. "i % 6" repeats them.
-              <Link key={p.crop} to={`/crops/${p.crop}`} className={`crop-tile tile-${(i % 6) + 1}`}>
-                {photos[p.crop] ? (
-                  <img src={photos[p.crop]} alt="" />
+              <Link key={c.name} to={cropLink(c.name)} className={`crop-tile tile-${(i % 6) + 1}`}>
+                {photos[c.name] ? (
+                  <img src={photos[c.name]} alt="" />
                 ) : (
                   <span className="crop-tile-letter" aria-hidden="true">
-                    {p.crop[0]}
+                    {c.name[0]}
                   </span>
                 )}
-                <strong>{p.crop}</strong>
-                <span>₱{formatPeso(p.pricePerKg)} per kg</span>
+                <strong>{c.name}</strong>
+                {/* The price and its month, or a note when PSA's prices aren't available */}
+                <span>{c.latest ? `₱${formatPeso(c.latest.pricePerKg)} per kg · ${c.latest.month}` : "Price not available"}</span>
               </Link>
             ))}
           </div>

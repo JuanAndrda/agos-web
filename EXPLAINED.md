@@ -573,3 +573,89 @@ We tested the whole app (114 checks at phone and laptop size) and fixed what the
 
 **Tested:** 65 API checks (including the new rules), 5 PSA cache checks (start-up load, one shared trip, stale fallback, 5-minute pause) and 54 browser checks at 390px and 1366px, all passing, on Firebase emulators with a fake PSA and Wikipedia. The real PSA and Wikipedia were checked separately from Juan's laptop browser.
 
+## 17. 104 crops and the searchable crop picker (Nov 20)
+
+Juan asked to grow the app from 10 crops to the vegetables and fruits that PSA has Iloilo prices for. We added **104 crops in 6 categories**. A list that long doesn't fit in a normal drop-down, so the listing form got a **crop picker you can search**.
+
+**Why 104 crops?** It is every Iloilo vegetable and fruit PSA tracks, minus "Other mango" and "Other banana" (catch-all groups, not real crops), "Cassava for industrial use" (sold to factories) and Broccoli (no Iloilo price since June 2024). 103 of the 104 have a PSA price from the last 12 months.
+
+### Part 1: one crop catalog for the whole app (`server/crops.js`)
+
+Before, the 10 crops were written in **two** places: `server/psa.js` and `client/src/constants.js`. With 104 crops, two lists would soon stop matching. Now there is **one list**, on the server:
+
+```js
+export const CROPS = [
+  { name: "Tomato", category: "Fruit vegetables", psaName: "Tomato", popular: true },
+  { name: "Banana (Saba)", category: "Fruits", psaName: "Banana Saba, green" },
+  ...
+];
+```
+
+- `name` is what people see. The first 10 names (Tomato, Carrots, Eggplant, ...) did not change, so old listings in Firestore still match.
+- `psaName` is PSA's own name, copied exactly from PSA OpenSTAT, or the price won't be found.
+- `category` decides the group in the picker, and also which PSA table to ask, because each category is one PSA table (`CATEGORIES` at the top: Fruit vegetables = table 05, Leafy = 06, Root crops = 02, Condiments = 04, Beans = 03, Fruits = 07).
+- `popular: true` marks the 10 crops shown on the Home page.
+
+**To add a crop later:** add one line in the right category and restart the server. Nothing in React needs to change.
+
+`psa.js` now imports this list. It still asks each PSA table only once, so 104 crops are still only **6 trips to PSA**, sent at the same time with `Promise.all`. `listings.js` checks every new listing against the catalog with `findCrop()`, so nobody can post a crop that isn't on the list (400 Bad Request: "Choose a crop from our crop list.").
+
+### Part 2: a new endpoint, `GET /api/crops` (`server/index.js`)
+
+It sends the whole catalog, each crop joined with its newest PSA price:
+
+```json
+{ "categories": ["Fruit vegetables", "Leafy vegetables", ...],
+  "pricesWorking": true,
+  "crops": [
+    { "name": "Tomato", "category": "Fruit vegetables", "popular": true,
+      "latest": { "pricePerKg": 38.81, "month": "June 2026", "monthKey": "2026-06", "older": false } },
+    { "name": "Durian", "category": "Fruits", "popular": false,
+      "latest": { "pricePerKg": 50, "month": "December 2025", "monthKey": "2025-12", "older": true } }
+  ] }
+```
+
+- It **always answers 200 OK**. If PSA is down, the crops still come back with `"latest": null`, so farmers can still choose any crop and type their own price.
+- `older: true` means PSA has no price for that crop in its newest month (June 2026), so this is the last month it had one. The app always shows the month next to the price, and says "older price" for these, so nobody thinks December 2025's price is this month's.
+- `GET /api/prices` also got `category` and `older` on every price, and its search finds categories too (`?search=beans`).
+- In React it is called by `services/cropsService.js` → `getCrops()`. Insomnia has a new request: "GET the crop catalog".
+
+### Part 3: the crop picker (`components/CropPicker.js`)
+
+A search box with a drop-down list under it:
+
+1. You **type** part of a name ("mang") and the list keeps only the crops whose name or category has that text: `crops.filter(...)` with `.toLowerCase().includes(text)`.
+2. The matches are **grouped** by category with `groupByCategory()` (in `cropsService.js`), with the category name as a heading that stays at the top while you scroll (`position: sticky`).
+3. The list has a **fixed height** (`max-height: min(320px, 55vh)` with `overflow-y: auto`), so it scrolls by itself and the form never gets longer.
+4. Each crop shows its **PSA price and month**, or "No PSA price yet". Older months are in gold with "older".
+5. After you choose, the box shows the crop, and a green line under it says "✓ Durian · Fruits".
+6. **Keyboard:** ↓ and ↑ move, Enter chooses, Escape closes. **Mouse/touch:** tap a crop, or the ▾ button. Clicking outside closes the list and keeps your choice.
+
+How it works in React (only `useState` and `useEffect`, like our class activities):
+- `open` (is the list showing?), `query` (what you typed) and `activeIndex` (which row the arrow keys are on) are 3 `useState`s.
+- The form gives the picker the crops and gets the chosen name back through a prop: `<CropPicker ... value={form.crop} onChange={handleCropChange} />`. This is "lifting state up": the form owns the value, the picker only shows it.
+- `onMouseDown={(e) => e.preventDefault()}` on the list stops the click from taking the cursor out of the search box first, or the list would close before the click counts.
+- `onBlur` on the whole picker closes the list when the cursor leaves it (`event.currentTarget.contains(event.relatedTarget)` checks if it moved somewhere still inside the picker).
+- ARIA words (`role="combobox"`, `role="listbox"`, `role="option"`, `aria-selected`, `aria-activedescendant`) tell screen readers it's a searchable list.
+
+It is **reusable**: a future "Add Demand" form for buyers can use the same picker with one line. (Juan decided on Nov 20 not to build Add Demand for now.)
+
+### Part 4: the other pages
+
+| Page | What changed |
+|---|---|
+| `ListingForm.js` | Uses `CropPicker` and `getCrops()` instead of a `<select>` and `getPrices()`. The PSA suggestion shows the month and, for older prices, "This is an older price... check today's market". A crop with no PSA price can still be posted with the farmer's own price. |
+| `MarketPrices.js` | Cards are grouped by category, with category buttons at the top (All 104, Fruit vegetables 14, ...). On a phone the buttons are one row you swipe. Cards say "older price" when needed. |
+| `CropDetails.js` | Checks the crop name in the catalog first (`getCrops()`), so `/crops/banana (saba)` works with any capital letters. Shows the category. "Latest available price" says when it's an older price. |
+| `Home.js` | Shows the 10 `popular` crops as tiles (104 tiles would be too many) and "104 crops". |
+| `Marketplace.js` | New **Category** filter, using each crop's category from `getCrops()`. |
+| `wikipediaService.js` | Wikipedia page titles for the new crops (checked on Nov 20). `getCropPhotos()` now asks each page only once and sends the requests **at the same time** with `Promise.all`, so 104 photos load in about 2 seconds instead of one by one. |
+| `constants.js` | The crop list is gone (it lives in `server/crops.js`). New helper `cropLink(name)` makes safe page addresses: `"Banana (Saba)"` → `/crops/Banana%20(Saba)`. |
+
+**New words to know:**
+- **Catalog**: one master list that everything else reads from, so names never disagree.
+- **Combobox**: a text box joined to a list of choices; you can type or pick.
+- **`Promise.all`**: starts many requests at once and waits until all of them are back.
+- **`encodeURIComponent`**: turns spaces and symbols into safe URL text (`" "` → `%20`).
+
+**Tested:** 25 API checks (all 104 crops' prices and months match PSA exactly, posting new and old crop names, 7 wrong crop names rejected with 400, history for "Banana (Saba)" and "leeks", PSA down → `/api/crops` still 200 with no prices) and 68 browser checks at 390px (phone) and 1366px (laptop): 104 cards in 6 groups, category buttons, picker search, keyboard, fixed list height, form doesn't grow, older-price notes, saving a listing, Category filter, Home tiles, no sideways scrolling and no console errors. Run on Firebase emulators with a fake PSA that sends the real Iloilo prices read on Nov 20. The real PSA names and the Wikipedia titles were checked from Juan's laptop browser.
