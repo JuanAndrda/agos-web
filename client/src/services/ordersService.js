@@ -23,20 +23,32 @@ export async function placeOrders(cart) {
   return readResponse(response);
 }
 
-// READ: GET /api/orders/mine -> the orders I sent (buyers only). Success: 200 OK.
-export async function getMyOrders() {
+// Turns { page: 2, limit: 6, status: "pending" } into "page=2&limit=6&status=pending"
+// (empty values are left out)
+function toQuery(options) {
+  const params = new URLSearchParams();
+  for (const name in options) {
+    if (options[name] !== "" && options[name] !== undefined) params.set(name, options[name]);
+  }
+  return params.toString();
+}
+
+// READ: GET /api/orders/mine?page=1&limit=6&status=pending -> ONE PAGE of the orders I sent (buyers only)
+// Success: 200 OK with { orders, page, limit, total, totalPages, totalAll, counts }.
+export async function getMyOrders(options) {
   const token = await auth.currentUser.getIdToken();
-  const response = await fetch("/api/orders/mine", {
+  const response = await fetch("/api/orders/mine?" + toQuery(options), {
     method: "GET",
     headers: { Authorization: "Bearer " + token },
   });
   return readResponse(response);
 }
 
-// READ: GET /api/orders/received -> the orders on my listings (farmers only). Success: 200 OK.
-export async function getReceivedOrders() {
+// READ: GET /api/orders/received?page=1&limit=6 -> ONE PAGE of the orders on my listings (farmers only)
+// Success: 200 OK, same shape as getMyOrders.
+export async function getReceivedOrders(options) {
   const token = await auth.currentUser.getIdToken();
-  const response = await fetch("/api/orders/received", {
+  const response = await fetch("/api/orders/received?" + toQuery(options), {
     method: "GET",
     headers: { Authorization: "Bearer " + token },
   });

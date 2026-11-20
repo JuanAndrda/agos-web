@@ -13,6 +13,7 @@ import express from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./firebaseAdmin.js";
 import { requireLogin, requireFarmer, requireBuyer } from "./auth.js";
+import { readPageQuery, paginate } from "./paginate.js";
 
 const router = express.Router();
 const MAX_ITEMS = 20; // the most different listings in one checkout
@@ -124,6 +125,9 @@ router.post("/", requireLogin, requireBuyer, async (req, res) => {
           farmerContact: data.contactNumber || "",
           status: "pending", // the farmer still has to accept or decline
         };
+        // An order on a DEMO listing (made by server/demo/seed.js) is demo data too, so
+        // "npm run demo:reset" removes it with the rest of the demo data
+        if (data.demo === true) order.demo = true;
         const orderRef = adminDb.collection("orders").doc(); // a new empty document with a new ID
         transaction.set(orderRef, { ...order, createdAt: FieldValue.serverTimestamp() });
         orders.push({ id: orderRef.id, ...order });
@@ -142,27 +146,58 @@ router.post("/", requireLogin, requireBuyer, async (req, res) => {
   }
 });
 
-// ---- GET /api/orders/mine: the orders I sent (the buyer's "My orders") ----
-router.get("/mine", requireLogin, requireBuyer, async (req, res) => {
-  try {
-    const snapshot = await adminDb.collection("orders").where("buyerId", "==", req.user.uid).get();
-    res.status(200).json(newestFirst(snapshot.docs.map(toJson))); // 200 OK
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "We couldn't load your orders. Please try again." }); // 500
-  }
-});
+const STATUSES = ["pending", "accepted", "declined", "cancelled", "completed"];
 
-// ---- GET /api/orders/received: the orders on my listings (the farmer's "Orders received") ----
-router.get("/received", requireLogin, requireFarmer, async (req, res) => {
+// Shared by the two GET endpoints below: checks ?page, ?limit and ?status, filters by status,
+// sorts newest first, and answers with ONE page of orders.
+// "field" says whose orders: "buyerId" (orders I sent) or "farmerId" (orders I received).
+async function sendOrderPage(req, res, field, errorText) {
+  // 1. Check the query parameters, like /api/orders/mine?page=2&limit=6&status=pending
+  const pageQuery = readPageQuery(req.query, 6); // 6 orders per page unless React asks for 12 or 24
+  if (pageQuery.error) {
+    return res.status(400).json({ error: pageQuery.error }); // 400 Bad Request
+  }
+  const status = String(req.query.status || "");
+  if (status !== "" && !STATUSES.includes(status)) {
+    return res.status(400).json({ error: `status must be one of ${STATUSES.join(", ")}.` }); // 400
+  }
+
   try {
-    const snapshot = await adminDb.collection("orders").where("farmerId", "==", req.user.uid).get();
-    res.status(200).json(newestFirst(snapshot.docs.map(toJson))); // 200 OK
+    // 2. Use the database: this person's orders
+    const snapshot = await adminDb.collection("orders").where(field, "==", req.user.uid).get();
+    const all = newestFirst(snapshot.docs.map(toJson));
+
+    // 3. How many orders have each status, for the filter buttons: { pending: 3, accepted: 1, ... }
+    const counts = {};
+    for (const order of all) counts[order.status] = (counts[order.status] || 0) + 1;
+
+    // 4. Filter by status, cut out the page, and answer: 200 OK
+    const matching = status ? all.filter((o) => o.status === status) : all;
+    const result = paginate(matching, pageQuery.page, pageQuery.limit);
+    res.status(200).json({
+      orders: result.items,
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: result.totalPages,
+      totalAll: all.length, // all of this person's orders, without the status filter
+      counts: counts,
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "We couldn't load the orders. Please try again." }); // 500
+    res.status(500).json({ error: errorText }); // 500
   }
-});
+}
+
+// ---- GET /api/orders/mine: ONE PAGE of the orders I sent (the buyer's "My orders") ----
+router.get("/mine", requireLogin, requireBuyer, (req, res) =>
+  sendOrderPage(req, res, "buyerId", "We couldn't load your orders. Please try again.")
+);
+
+// ---- GET /api/orders/received: ONE PAGE of the orders on my listings (the farmer's "Orders received") ----
+router.get("/received", requireLogin, requireFarmer, (req, res) =>
+  sendOrderPage(req, res, "farmerId", "We couldn't load the orders. Please try again.")
+);
 
 // ---- PATCH /api/orders/:id: change an order's status ----
 // React sends { status: "..." }. The allowed changes (like steps in a story):

@@ -127,7 +127,7 @@ Read each endpoint top to bottom: check who it is → check the data → use the
 
 | Method and address | What it does | Who can use it | Possible answers |
 |---|---|---|---|
-| `GET /api/listings` | Every available listing, newest first (Marketplace) | Anyone logged in | 200, 401 |
+| `GET /api/listings?page=1&limit=12` | One PAGE of available listings, filtered and sorted on the server (Marketplace, see section 18) | Anyone logged in | 200, 400, 401 |
 | `GET /api/listings/mine` | My own listings, available and sold (My Listings) | Farmers | 200, 401, 403 |
 | `POST /api/listings` | Post a new crop | Farmers | 201, 400, 401, 403 |
 | `PATCH /api/listings/:id` | Edit a listing, or mark it sold | The owner only | 200, 400, 401, 403, 404 |
@@ -231,9 +231,9 @@ Every page also sets the name in the browser tab, like "Market Prices · AgosUgn
 - **`Home.js`** (Nov 17): the landing page at `/`. Anyone can open it. A big welcome box (the "hero"), one tile per crop with its newest PSA price (`GET /api/prices`, which needs no login) and its Wikipedia photo (`getCropInfo`, the same as Crop Details), and "How it works" in 3 steps. `getCropPhotos` (in `wikipediaService.js`) asks Wikipedia for the photos one after another; if one photo fails, that tile shows the crop's first letter instead.
 - **`Login.js`**: email and password. Checks that both are filled, calls `login()`, and shows Firebase errors in plain words.
 - **`Register.js`**: name, email, password (6+ characters) and a Farmer/Buyer choice. `checkForm()` finds every problem at once and shows each one under its own field, the same way as the listing form, then puts the cursor in the first one. Calls `register()`, then `refreshUser()`.
-- **`MarketPrices.js`**: the newest PSA farmgate price of each crop, with search. Since Nov 17 each crop is a clickable card with its Wikipedia photo, price and month; clicking it opens Crop Details. Above the cards, 3 summary boxes show the lowest price, the highest price and how many crops are shown. They are worked out in React with `reduce()` from the same prices, so there is no extra API call. Always shows the source ("PSA OpenSTAT"), the month of each price, and when our server last checked PSA, written as "Nov 5, 2026, 2:14 AM" so nobody mixes up the day and the month.
+- **`MarketPrices.js`**: the newest PSA farmgate price of each crop, with search. Since Nov 17 each crop is a clickable card with its Wikipedia photo, price and month; clicking it opens Crop Details. Above the cards, 3 summary boxes show the lowest price, the highest price and how many crops are shown. They are worked out in React with `reduce()` from the same prices, so there is no extra API call. Always shows the source ("PSA OpenSTAT") and the month of each price. (Since Nov 20 the "PSA updates these prices once a month... Last checked" note is gone; see section 18.)
 - **`CropDetails.js`**: uses two APIs at the same time. It finds the crop whatever the capital letters are, so `/crops/tomato` also works. The left card is Wikipedia (photo and description). The right card is our server (`GET /api/prices/Tomato`): since Nov 17 it shows 3 boxes (latest price, previous month, and the change up or down in pesos and %), then a line chart of the last 12 months (`PriceChart.js`). The table is still there behind "Show all months as a table" (a `<details>` element, which opens and closes without any JavaScript). Each card has its own loading and error, so if Wikipedia is down, the prices still show.
-- **`Marketplace.js`**: loads every available listing once from our server (`GET /api/listings`), then searches, filters (town, min and max price) and sorts (newest, price low→high, high→low) in React with `.filter()` and `.sort()`. Shows "Showing 2 of 5 listings" and a Clear filters button. If the max price is lower than the min price, it says so under the Max field instead of just showing "no listings". The filters stay in React, not on the server, so the results change instantly while you type, with no waiting.
+- **`Marketplace.js`**: (Since Nov 20 the server does the filtering and sends one page at a time; see section 18. The old way is described here.) It loaded every available listing once from our server (`GET /api/listings`), then searched, filtered (town, min and max price) and sorted (newest, price low→high, high→low) in React with `.filter()` and `.sort()`. Shows "Showing 2 of 5 listings" and a Clear filters button. If the max price is lower than the min price, it says so under the Max field instead of just showing "no listings". The filters stay in React, not on the server, so the results change instantly while you type, with no waiting.
 - **`MyListings.js`**: the farmer's own listings with all of CRUD, each one a request to our server. **Post a crop** (Create, `POST`), the list (Read, `GET /mine`), **Edit** and **Mark as sold** (Update, `PATCH`), **Delete** (`DELETE`). Delete asks "This can't be undone" first. Every action shows a success or error message, and the buttons are disabled while it saves.
 
 ---
@@ -659,3 +659,90 @@ It is **reusable**: a future "Add Demand" form for buyers can use the same picke
 - **`encodeURIComponent`**: turns spaces and symbols into safe URL text (`" "` → `%20`).
 
 **Tested:** 25 API checks (all 104 crops' prices and months match PSA exactly, posting new and old crop names, 7 wrong crop names rejected with 400, history for "Banana (Saba)" and "leeks", PSA down → `/api/crops` still 200 with no prices) and 68 browser checks at 390px (phone) and 1366px (laptop): 104 cards in 6 groups, category buttons, picker search, keyboard, fixed list height, form doesn't grow, older-price notes, saving a listing, Category filter, Home tiles, no sideways scrolling and no console errors. Run on Firebase emulators with a fake PSA that sends the real Iloilo prices read on Nov 20. The real PSA names and the Wikipedia titles were checked from Juan's laptop browser.
+
+## 18. Pages of listings and orders, and demo data (Nov 20)
+
+Juan asked for three things: remove the PSA note, add sample data to test moving between pages, and check whether the app really supports pages.
+
+### Part 1: the PSA note is gone
+
+Market Prices used to say "PSA updates these prices once a month, a few months late... Last checked from PSA ...". That paragraph (and the `checkedAt` state that filled it) was removed from `MarketPrices.js`. **Nothing about the prices changed:** every crop still shows its PSA price and its month, older months still say "older", and Crop Details still shows the "Latest available price" with its month. (The server still sends `checkedAt` in `GET /api/prices`; React just doesn't show it. The footer line "Prices: PSA OpenSTAT" is a source credit and stays.)
+
+### Part 2: what we found
+
+There were **no pages** anywhere. `GET /api/listings`, `GET /api/orders/mine` and `GET /api/orders/received` sent the WHOLE list every time, and Marketplace filtered it in React. With 6 listings that is fine. With 600 the phone downloads all 600 just to show 12.
+
+We had three choices:
+
+| Choice | How | Why we did / didn't pick it |
+|---|---|---|
+| Hide items in React | Load everything, show 12 | Still downloads everything. Juan said not to just hide items. |
+| Firestore cursors (`startAfter`) | Firestore reads only 12 | Needs an index for every filter combination, can't jump to "page 5", and is much harder to explain. |
+| **Pages on our Express server** ✓ | The server filters, sorts, then cuts one page with `slice()` | The phone gets only one page. Easy to explain: it is the query parameters from our Insomnia activities. Page numbers and "Page 3 of 6" work. |
+
+We picked the **server**. (The server still reads all available listings from Firestore each time. For a class project with hundreds of listings that is fast. A real app with 100,000 listings would switch to Firestore cursors.)
+
+### Part 3: query parameters (`server/paginate.js`)
+
+React asks for a page by adding **query parameters** to the address (the part after `?`):
+
+```
+GET /api/listings?page=2&limit=12&category=Fruits&sort=price-low
+GET /api/orders/received?page=1&limit=6&status=pending
+```
+
+`paginate.js` has two small functions used by both listings and orders:
+
+- `readPageQuery(req.query, 12)` checks `page` (a whole number, 1 or more) and `limit` (6, 12 or 24). A wrong value gives **400 Bad Request**, like `?limit=100` → "limit must be one of 6, 12, 24."
+- `paginate(items, page, limit)` cuts one page out of the list with `items.slice(start, start + limit)`, where `start = (page - 1) * limit`. Page 1 starts at 0, page 2 at 12. If you ask for a page past the end (say the last listing on page 6 was just bought), you get the **last page** instead of an empty one.
+
+**Listings** (`listings.js`, `GET /`): it reads the available listings, keeps the ones that match every filter (`search`, `category`, `town`, `minPrice`, `maxPrice`), sorts the WHOLE list (`newest`, `price-low`, `price-high`), and only then cuts the page, so page 2 always continues page 1. The answer:
+
+```json
+{ "listings": [ ...12 listings... ], "page": 2, "limit": 12, "total": 63, "totalPages": 6, "totalAvailable": 63 }
+```
+
+`total` is how many match the filters; `totalAvailable` is how many are for sale at all (for "17 of 63 listings match").
+
+**Orders** (`orders.js`, `sendOrderPage`): the same idea, 6 per page, newest first, with an optional `?status=pending`. It also sends `counts` (like `{ pending: 8, accepted: 4 }`) for the status buttons, and `totalAll`.
+
+### Part 4: React (`components/Pagination.js`)
+
+`Pagination.js` is one reusable component, used by Marketplace and Orders. It shows "Showing 13–24 of 63 listings", the buttons "← Previous 1 … 4 [5] 6 … 10 Next →", and a **Per page** box (6, 12, 24). On a phone the number buttons are hidden and it says "Page 2 of 6" instead. It doesn't load anything itself; the page gives it the numbers and two functions.
+
+In `Marketplace.js` and `Orders.js`:
+
+- `page`, `limit` and every filter are **state**. The `useEffect` that loads the list has them all in its `[ ]` list, so changing any of them loads again.
+- Changing a filter or the page size goes back to **page 1** (`changeFilter`, `changeLimit`), because page 5 of the old results may not exist.
+- Typing waits **300 ms** (`setTimeout`), so typing "mango" sends one request, not five. A `stale` flag makes sure an old, slow answer never replaces a newer one.
+- While the next page loads, the old page stays on screen, faded (`.results-loading`), so the page doesn't jump. The "Showing ..." numbers come from the server's answer (`shownPage`, `shownLimit`), so they always match the cards on screen.
+- After Accept, Decline, Cancel or Mark as completed, Orders loads the same page again (`reloadCount + 1`), so the counts on the status buttons update.
+
+### Part 5: demo data (`server/demo/`)
+
+To test pages you need many listings and orders. Typing 60 listings by hand is slow, so there are two scripts:
+
+```
+cd server
+npm run demo:seed -- yourDemoPassword   (adds the demo data; the password is for the demo accounts)
+npm run demo:reset                      (removes ALL demo data, and only demo data)
+```
+
+What the seed adds:
+
+- **6 demo farmers** in different towns (Maria Santos (Demo) in Pototan, Jose Dela Cruz (Demo) in Janiuay, ...) and **3 demo buyers**. Emails are `demo.farmer1@agosugnayan.test` ... `demo.buyer3@agosugnayan.test`; `.test` addresses can never receive real email. Phone numbers are fake (0900 000 0001).
+- **66 listings**: each farmer has 11 different crops (no copies), with realistic prices and amounts, spread over 3 weeks. 3 are sold out.
+- **45 orders** in every status (waiting, accepted, completed, declined, cancelled). Stock already takes away the kilos of the open and completed orders, like a real checkout.
+
+How it stays apart from real data:
+
+- Every demo record has `demo: true`, and every demo name ends in "(Demo)". Listing cards and order rows show a yellow **DEMO** badge.
+- The seed refuses to run twice ("Demo data is already in the database").
+- `demo:reset` deletes only records with `demo: true` (plus any order on a demo listing, and the 9 demo accounts). Real users, listings and orders are never touched. We tested this: a real listing and a real order were still there after the reset.
+
+**Careful:** the live site uses the same Firestore database. Seeding the real database makes the demo listings appear on the live site too. Remove them with `npm run demo:reset` before the presentation if you don't want them there.
+
+### Part 6: what was tested
+
+On the Firebase emulators with the 66 listings and 45 orders: 29 API checks (every page once with no repeats, page 99 → last page, `limit=7` → 400, each filter and sort, status filter and counts) and 49 browser checks at phone (390 px) and laptop (1366 px) width: moving between pages, Per page, a filter on page 2 going back to page 1, search across pages, no matches, Accept updating the counts, adding/editing/deleting a listing changing the totals, no sideways scrolling, no console errors.
+

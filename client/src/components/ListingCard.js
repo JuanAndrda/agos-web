@@ -45,6 +45,8 @@ function ListingCard({ listing, photo, children, showFarmer = true }) {
         <span className={sold ? "status status-sold" : "status status-available"}>
           {soldOut ? "Sold out" : sold ? "Sold" : "Available"}
         </span>
+        {/* Test data made by server/demo/seed.js, so nobody takes it for a real farmer's listing */}
+        {listing.demo && <span className="demo-badge">Demo</span>}
       </div>
 
       <div className="listing-body">

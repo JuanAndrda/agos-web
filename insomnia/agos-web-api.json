@@ -133,16 +133,16 @@
       "_id": "req_4",
       "_type": "request",
       "parentId": "fld_listings",
-      "name": "GET available listings",
+      "name": "GET available listings (one page)",
       "method": "GET",
-      "url": "{{ _.base_url }}/api/listings",
+      "url": "{{ _.base_url }}/api/listings?page=1&limit=12&category=&sort=newest",
       "headers": [
         {
           "name": "Authorization",
           "value": "Bearer {{ _.token }}"
         }
       ],
-      "description": "200 OK. Remove the Authorization header to see 401 Unauthorized.",
+      "description": "One page of listings. Try page=2, limit=6/12/24, category=Fruits, search=mango, town=Pototan, minPrice=20&maxPrice=60, sort=price-low. limit=7 gives 400.",
       "metaSortKey": 4,
       "body": {}
     },
@@ -256,16 +256,16 @@
       "_id": "req_10",
       "_type": "request",
       "parentId": "fld_orders",
-      "name": "GET my orders (buyer)",
+      "name": "GET my orders (buyer, one page)",
       "method": "GET",
-      "url": "{{ _.base_url }}/api/orders/mine",
+      "url": "{{ _.base_url }}/api/orders/mine?page=1&limit=6",
       "headers": [
         {
           "name": "Authorization",
           "value": "Bearer {{ _.token }}"
         }
       ],
-      "description": "200 OK. Copy an id into order_id.",
+      "description": "One page of my orders, newest first. Add &status=pending (or accepted, declined, cancelled, completed).",
       "metaSortKey": 10,
       "body": {}
     },
@@ -273,16 +273,16 @@
       "_id": "req_11",
       "_type": "request",
       "parentId": "fld_orders",
-      "name": "GET orders received (farmer)",
+      "name": "GET orders received (farmer, one page)",
       "method": "GET",
-      "url": "{{ _.base_url }}/api/orders/received",
+      "url": "{{ _.base_url }}/api/orders/received?page=1&limit=6&status=pending",
       "headers": [
         {
           "name": "Authorization",
           "value": "Bearer {{ _.token }}"
         }
       ],
-      "description": "200 OK.",
+      "description": "One page of orders on my listings. Remove &status=pending to see every status.",
       "metaSortKey": 11,
       "body": {}
     },

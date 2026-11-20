@@ -79,6 +79,17 @@ Quick server checks:
 - Open http://localhost:5000/api/prices. You should see JSON with prices. If you see an error about PSA, the PSA website may be down or slow; try again later.
 - Open http://localhost:5000/api/listings. You should see `{"error":"Please log in first."}`. That's correct: the browser's address bar sends no login token. If it says the server "has no Firebase key yet", do setup step 4.
 
+## Demo data for testing pages (optional)
+
+To try the page buttons you need many listings and orders. From the `server` folder:
+
+```
+npm run demo:seed -- yourDemoPassword
+npm run demo:reset
+```
+
+`demo:seed` adds 6 demo farmers, 3 demo buyers, 66 listings and 45 orders, all marked `demo: true` and shown with a DEMO badge. Log in as `demo.buyer1@agosugnayan.test` or `demo.farmer1@agosugnayan.test` with the password you chose. `demo:reset` removes all demo data and nothing else. The live site uses the same database, so reset before the presentation if you don't want demo listings showing there. Details: EXPLAINED.md section 18.
+
 ## If something goes wrong
 
 | What you see | What to do |
@@ -104,6 +115,8 @@ agos-web/
 │   ├── auth.js          ← middleware: is this person logged in? are they a farmer?
 │   ├── listings.js      ← the listings API: GET, POST, PATCH and DELETE /api/listings
 │   ├── orders.js        ← the orders API: POST, GET and PATCH /api/orders (cart checkout)
+│   ├── paginate.js      ← cuts a long list into pages (?page=2&limit=12)
+│   ├── demo/            ← demo data for testing: npm run demo:seed -- <password> / npm run demo:reset
 │   └── serviceAccountKey.json  ← the secret key (you add it; never on GitHub)
 ├── client/              ← our React app (Create React App)
 │   ├── .env.example     ← the names of the Firebase keys (copy to .env)

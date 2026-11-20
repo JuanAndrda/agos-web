@@ -16,7 +16,6 @@ import { groupByCategory } from "../services/cropsService";
 
 function MarketPrices() {
   const [prices, setPrices] = useState([]);
-  const [checkedAt, setCheckedAt] = useState(null); // when our server last asked PSA
   const [stale, setStale] = useState(false); // true = PSA isn't answering, these are older prices
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,7 +39,6 @@ function MarketPrices() {
       const data = await getPrices(text); // GET /api/prices?search=text
       setPrices(data.prices);
       setCategories(data.categories);
-      setCheckedAt(data.checkedAt);
       setStale(data.stale);
       setSearched(text);
       setCategory(""); // a new search shows every category again
@@ -162,24 +160,15 @@ function MarketPrices() {
             </p>
           )}
 
-          <p className="result-note small">
-            {searched && (
-              <>
-                Showing {prices.length} result{prices.length === 1 ? "" : "s"} for "{searched}".{" "}
-                <button type="button" className="link-button" onClick={showAll}>
-                  Show all crops
-                </button>{" "}
-              </>
-            )}
-            PSA updates these prices once a month, a few months late. They are a guide, not today's price.
-            Each card shows the month of its price. "Older price" means PSA has no price for that crop in
-            its newest month, so we show the last month it had one.
-            {checkedAt &&
-              ` Last checked from PSA: ${new Date(checkedAt).toLocaleString("en-PH", {
-                dateStyle: "medium", // "Nov 5, 2026", so nobody mixes up the day and the month
-                timeStyle: "short", // "2:14 AM"
-              })}.`}
-          </p>
+          {/* When a search is on: how many crops matched, and a way back to all crops */}
+          {searched && (
+            <p className="result-note small">
+              Showing {prices.length} result{prices.length === 1 ? "" : "s"} for "{searched}".{" "}
+              <button type="button" className="link-button" onClick={showAll}>
+                Show all crops
+              </button>
+            </p>
+          )}
 
           {/* One section per category, one card per crop. The whole card is a link, so it's easy to tap. */}
           {groups.map((group) => (

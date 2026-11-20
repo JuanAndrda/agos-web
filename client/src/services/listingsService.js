@@ -13,11 +13,23 @@
 import { auth } from "../firebase";
 import { readResponse } from "./readResponse";
 
-// READ: GET /api/listings -> every listing that is still available (Marketplace page)
-// Success: 200 OK with a list of listings
-export async function getAvailableListings() {
+// READ: GET /api/listings?page=1&limit=12&search=... -> ONE PAGE of the available listings (Marketplace)
+// "options" holds the page and the filters, like { page: 2, limit: 12, search: "mango", town: "Oton" }.
+// URLSearchParams turns it into the text after "?" and makes spaces and symbols safe:
+//   { page: 2, search: "banana (saba)" } -> "page=2&search=banana+%28saba%29"
+// Empty filters are left out. Success: 200 OK with { listings, page, limit, total, totalPages, totalAvailable }.
+// Wrong page or limit: 400 Bad Request.
+function toQuery(options) {
+  const params = new URLSearchParams();
+  for (const name in options) {
+    if (options[name] !== "" && options[name] !== undefined) params.set(name, options[name]);
+  }
+  return params.toString();
+}
+
+export async function getAvailableListings(options) {
   const token = await auth.currentUser.getIdToken();
-  const response = await fetch("/api/listings", {
+  const response = await fetch("/api/listings?" + toQuery(options), {
     method: "GET",
     headers: { Authorization: "Bearer " + token },
   });

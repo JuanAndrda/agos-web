@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "demo:seed": "node demo/seed.js",
+    "demo:reset": "node demo/reset.js"
   },
   "license": "ISC",
   "dependencies": {
