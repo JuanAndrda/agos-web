@@ -1848,3 +1848,104 @@ select:disabled {
   font-size: 1rem;
   font-weight: 500;
 }
+
+/* ---------- Demo data badge (server/demo/seed.js) ---------- */
+.demo-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--harvest-ink);
+  background: var(--harvest-soft);
+  color: var(--harvest-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+/* ---------- Pagination (Pagination.js) ---------- */
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin: 24px 0 8px;
+}
+.pagination-info {
+  margin: 0;
+  color: var(--muted);
+}
+.pagination-pages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.page-btn {
+  min-width: 44px;
+  min-height: 44px; /* big enough to tap */
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.page-btn.current {
+  background: var(--leaf);
+  border-color: var(--leaf);
+  color: #fff;
+  font-weight: 700;
+}
+.page-gap {
+  padding: 0 4px;
+  color: var(--muted);
+}
+.page-of {
+  display: none; /* shown only on phones, where the number buttons are hidden */
+  color: var(--muted);
+  padding: 0 6px;
+}
+.pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pagination-size label {
+  margin: 0;
+  font-weight: 600;
+}
+.pagination-size select {
+  width: auto;
+}
+@media (max-width: 600px) {
+  .pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pagination-pages {
+    justify-content: space-between;
+    flex-wrap: nowrap;
+  }
+  .page-number,
+  .page-gap {
+    display: none; /* on a phone: ← Previous   Page 2 of 5   Next → */
+  }
+  .page-of {
+    display: inline;
+  }
+}
+
+/* While the next page loads, the old page stays on screen, a little faded */
+.results-loading {
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}

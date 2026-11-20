@@ -3,12 +3,15 @@
 // - a farmer sees "Orders received" (requests for their crops, with Accept and Decline)
 // Each button sends PATCH /api/orders/:id with the new status. Decline and Cancel put the kilos
 // back on the listing (the server does it in server/orders.js).
+// Since Nov 20 the orders come ONE PAGE at a time from the server (GET /api/orders/...?page=2&limit=6),
+// with status buttons (All, Waiting, Accepted, ...) and the page buttons from Pagination.js.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMyOrders, getReceivedOrders, setOrderStatus } from "../services/ordersService";
 import { formatPeso } from "../constants";
 import Loading from "../components/Loading";
 import ErrorMessage from "../components/ErrorMessage";
+import Pagination from "../components/Pagination";
 
 // The words we show for each status
 const STATUS_TEXT = {
@@ -31,6 +34,8 @@ function OrderRow({ order, who, children }) {
       <div className="order-main">
         <strong>
           {order.quantityKg} kg {order.crop}
+          {/* Test data (server/demo/seed.js), not a real order */}
+          {order.demo && <span className="demo-badge">Demo</span>}
         </strong>
         <span className="muted">
           ₱{formatPeso(order.pricePerKg)}/kg · {formatDay(order.createdAt)}
@@ -48,9 +53,21 @@ function OrderRow({ order, who, children }) {
 // user is a prop from App.js
 function Orders({ user }) {
   const isFarmer = user.role === "farmer";
-  const [myOrders, setMyOrders] = useState([]);
-  const [received, setReceived] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState([]); // only the orders on THIS page
+  // The page, the status filter, and the numbers the server sends back
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(6); // orders per page: 6, 12 or 24
+  const [status, setStatus] = useState(""); // "" = all statuses
+  const [total, setTotal] = useState(0); // orders with this status, on all pages
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalAll, setTotalAll] = useState(0); // all my orders, any status
+  const [counts, setCounts] = useState({}); // like { pending: 3, accepted: 1 }
+  // The page and page size of the orders ON SCREEN (from the server's answer), see Marketplace.js
+  const [shownPage, setShownPage] = useState(1);
+  const [shownLimit, setShownLimit] = useState(6);
+  const [reloadCount, setReloadCount] = useState(0); // +1 = load this page again
+  const [loading, setLoading] = useState(true); // waiting for the server right now
+  const [loadedOnce, setLoadedOnce] = useState(false); // the first page has arrived
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [actionError, setActionError] = useState("");
@@ -60,29 +77,57 @@ function Orders({ user }) {
     document.title = "Orders · AgosUgnayan Web";
   }, []);
 
-  // READ: GET the orders. A plain async function with try / catch / finally.
-  async function loadOrders() {
-    setLoading(true);
-    setError("");
-    try {
-      if (isFarmer) {
-        setReceived(await getReceivedOrders()); // READ: GET /api/orders/received
-      } else {
-        setMyOrders(await getMyOrders()); // READ: GET /api/orders/mine
+  // READ: GET one page of orders. It runs when the page opens, and again when the page, the
+  // page size, the status filter or reloadCount changes (the list in [ ] at the end).
+  // "stale" makes sure an old, slow answer never replaces a newer one.
+  useEffect(() => {
+    let stale = false;
+    async function loadOrders() {
+      setLoading(true);
+      setError("");
+      try {
+        const options = { page: page, limit: limit, status: status };
+        const data = isFarmer
+          ? await getReceivedOrders(options) // READ: GET /api/orders/received?page=...
+          : await getMyOrders(options); // READ: GET /api/orders/mine?page=...
+        if (stale) return;
+        setOrders(data.orders);
+        setTotal(data.total);
+        setTotalPages(data.totalPages);
+        setTotalAll(data.totalAll);
+        setCounts(data.counts);
+        setShownPage(data.page);
+        setShownLimit(data.limit);
+        setLoadedOnce(true);
+        if (data.page !== page) setPage(data.page); // the page we asked for no longer exists
+      } catch (err) {
+        console.error(err);
+        if (!stale) setError(err.message);
+      } finally {
+        if (!stale) setLoading(false);
       }
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
     }
+    loadOrders();
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, limit, status, reloadCount]);
+
+  function changeStatusFilter(value) {
+    setStatus(value);
+    setPage(1); // a new filter starts on page 1
   }
 
-  // Load the orders once, when the page opens
-  useEffect(() => {
-    loadOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  function goToPage(n) {
+    setPage(n);
+    document.getElementById("order-results").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function changeLimit(n) {
+    setLimit(n);
+    setPage(1);
+  }
 
   // Accept, Decline or Cancel one order: UPDATE with PATCH /api/orders/:id
   async function changeStatus(order, status, successText) {
@@ -92,7 +137,7 @@ function Orders({ user }) {
     try {
       await setOrderStatus(order.id, status);
       setMessage(successText);
-      await loadOrders();
+      setReloadCount(reloadCount + 1); // load this page again, so the change and the counts show
     } catch (err) {
       console.error(err);
       setActionError(err.message);
@@ -100,6 +145,34 @@ function Orders({ user }) {
       setBusyId(null);
     }
   }
+
+  // The status buttons: All (12), Waiting (3), Accepted (2), ... The numbers come from the server.
+  const statusButtons =
+    totalAll > 0 ? (
+      <div className="category-chips" role="group" aria-label="Show orders by status">
+        <button type="button" className="chip" aria-pressed={status === ""} onClick={() => changeStatusFilter("")}>
+          All <span>{totalAll}</span>
+        </button>
+        {Object.keys(STATUS_TEXT).map((key) => (
+          <button key={key} type="button" className="chip" aria-pressed={status === key} onClick={() => changeStatusFilter(key)}>
+            {STATUS_TEXT[key]} <span>{counts[key] || 0}</span>
+          </button>
+        ))}
+      </div>
+    ) : null;
+
+  const pagination = (
+    <Pagination
+      id="orders"
+      page={shownPage}
+      totalPages={totalPages}
+      total={total}
+      limit={shownLimit}
+      itemName="orders"
+      onPageChange={goToPage}
+      onLimitChange={changeLimit}
+    />
+  );
 
   return (
     <section>
@@ -118,19 +191,22 @@ function Orders({ user }) {
         </p>
       )}
       {actionError && <ErrorMessage message={actionError} />}
-      {loading && <Loading text="Loading orders..." />}
-      {error && <ErrorMessage message={error} onRetry={loadOrders} />}
+      <div id="order-results" />
+      {/* "Loading" only for the first page; after that the old page stays (dimmed) until the new one comes */}
+      {loading && !loadedOnce && <Loading text="Loading orders..." />}
+      {error && <ErrorMessage message={error} onRetry={() => setReloadCount(reloadCount + 1)} />}
 
-      {!loading && !error && (
+      {loadedOnce && !error && (
         <>
           {isFarmer && (
             <div className="card orders-card">
               <h2>Orders received</h2>
-              {received.length === 0 ? (
-                <p className="muted">No one has ordered your crops yet.</p>
+              {statusButtons}
+              {orders.length === 0 ? (
+                <p className="muted">{totalAll === 0 ? "No one has ordered your crops yet." : "No orders with this status."}</p>
               ) : (
-                <ul className="order-list">
-                  {received.map((order) => (
+                <ul className={loading ? "order-list results-loading" : "order-list"} aria-busy={loading}>
+                  {orders.map((order) => (
                     <OrderRow
                       key={order.id}
                       order={order}
@@ -189,19 +265,25 @@ function Orders({ user }) {
                   ))}
                 </ul>
               )}
+              {totalAll > 0 && pagination}
             </div>
           )}
 
           {!isFarmer && (
             <div className="card orders-card">
               <h2>My orders</h2>
-              {myOrders.length === 0 ? (
-                <p className="muted">
-                  You haven't ordered anything yet. <Link to="/marketplace">Browse the Marketplace</Link>
-                </p>
+              {statusButtons}
+              {orders.length === 0 ? (
+                totalAll === 0 ? (
+                  <p className="muted">
+                    You haven't ordered anything yet. <Link to="/marketplace">Browse the Marketplace</Link>
+                  </p>
+                ) : (
+                  <p className="muted">No orders with this status.</p>
+                )
               ) : (
-                <ul className="order-list">
-                  {myOrders.map((order) => (
+                <ul className={loading ? "order-list results-loading" : "order-list"} aria-busy={loading}>
+                  {orders.map((order) => (
                     <OrderRow
                       key={order.id}
                       order={order}
@@ -226,6 +308,7 @@ function Orders({ user }) {
                   ))}
                 </ul>
               )}
+              {totalAll > 0 && pagination}
             </div>
           )}
         </>

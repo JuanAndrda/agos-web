@@ -10,6 +10,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./firebaseAdmin.js";
 import { requireLogin, requireFarmer } from "./auth.js";
 import { findCrop } from "./crops.js";
+import { readPageQuery, paginate } from "./paginate.js";
 
 const router = express.Router();
 
@@ -104,16 +105,62 @@ router.use((req, res, next) => {
   next();
 });
 
-// ---- GET /api/listings: every listing that is still available, newest first (Marketplace) ----
-router.get("/", requireLogin, async (req, res) => {
-  try {
-    // 1. Use the database: read the listings whose status is "available"
-    const snapshot = await adminDb.collection("listings").where("status", "==", "available").get();
-    const listings = snapshot.docs.map(toJson);
-    listings.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+// ---- GET /api/listings: ONE PAGE of the available listings (Marketplace) ----
+// Example: GET /api/listings?page=2&limit=12&search=mango&category=Fruits&town=Oton&minPrice=20&maxPrice=80&sort=price-low
+// Every query parameter is optional. The SERVER searches, filters, sorts and cuts out the page,
+// and sends only that page, so the browser never downloads hundreds of listings at once.
+const SORTS = ["newest", "price-low", "price-high"];
 
-    // 2. Answer: 200 OK with the list
-    res.status(200).json(listings);
+router.get("/", requireLogin, async (req, res) => {
+  // 1. Check the query parameters
+  const pageQuery = readPageQuery(req.query, 12); // 12 listings per page unless React asks for 6 or 24
+  if (pageQuery.error) {
+    return res.status(400).json({ error: pageQuery.error }); // 400 Bad Request
+  }
+  const search = String(req.query.search || "").trim().toLowerCase();
+  const category = String(req.query.category || "");
+  const town = String(req.query.town || "");
+  const minPrice = req.query.minPrice === undefined || req.query.minPrice === "" ? null : Number(req.query.minPrice);
+  const maxPrice = req.query.maxPrice === undefined || req.query.maxPrice === "" ? null : Number(req.query.maxPrice);
+  const sort = String(req.query.sort || "newest");
+  if (Number.isNaN(minPrice) || Number.isNaN(maxPrice)) {
+    return res.status(400).json({ error: "minPrice and maxPrice must be numbers." }); // 400
+  }
+  if (!SORTS.includes(sort)) {
+    return res.status(400).json({ error: `sort must be one of ${SORTS.join(", ")}.` }); // 400
+  }
+
+  try {
+    // 2. Use the database: read the listings whose status is "available"
+    const snapshot = await adminDb.collection("listings").where("status", "==", "available").get();
+    const all = snapshot.docs.map(toJson);
+
+    // 3. Keep only the listings that match EVERY filter. The category comes from our crop catalog.
+    const matching = all.filter((l) => {
+      const crop = findCrop(l.crop);
+      if (search && !l.crop.toLowerCase().includes(search)) return false;
+      if (category && !(crop && crop.category === category)) return false;
+      if (town && l.town !== town) return false;
+      if (minPrice !== null && l.pricePerKg < minPrice) return false;
+      if (maxPrice !== null && l.pricePerKg > maxPrice) return false;
+      return true;
+    });
+
+    // 4. Sort the WHOLE matching list first, then cut the page, so page 2 continues page 1
+    if (sort === "newest") matching.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    if (sort === "price-low") matching.sort((a, b) => a.pricePerKg - b.pricePerKg);
+    if (sort === "price-high") matching.sort((a, b) => b.pricePerKg - a.pricePerKg);
+    const result = paginate(matching, pageQuery.page, pageQuery.limit);
+
+    // 5. Answer: 200 OK with one page and the page numbers
+    res.status(200).json({
+      listings: result.items,
+      page: result.page,
+      limit: result.limit,
+      total: result.total, // how many listings match the filters (on all pages)
+      totalPages: result.totalPages,
+      totalAvailable: all.length, // how many listings are for sale, without filters
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "We couldn't load the listings. Please try again." }); // 500 Internal Server Error
