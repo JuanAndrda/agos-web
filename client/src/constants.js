@@ -1,12 +1,8 @@
 // constants.js: fixed lists the forms and filters use. Choosing from a list instead of typing
-// prevents spelling mistakes (for example "Tomatoes" vs "Tomato"), so every listing matches
-// a crop on the Market Prices page. At the bottom: one small helper for showing prices.
+// prevents spelling mistakes (for example "Santa Barbara" vs "Sta. Barbara"). At the bottom: one small helper for showing prices.
 
-// The same 10 crops our server gets prices for from PSA (server/psa.js)
-export const CROPS = [
-  "Tomato", "Cabbage", "Carrots", "Eggplant", "Ampalaya",
-  "Pechay", "Onion", "Squash", "Okra", "Kangkong",
-];
+// The crops are NOT here any more: there are 104 of them, so they live in ONE place, the
+// server's crop catalog (server/crops.js). React gets them with GET /api/crops (cropsService.js).
 
 // Iloilo Province: 42 towns, Passi City and Iloilo City (same list as our Agos app)
 export const TOWNS = [
@@ -24,4 +20,10 @@ export const TOWNS = [
 // (add "₱" in front where you use it). Used on Market Prices, Crop Details and the listing cards.
 export function formatPeso(amount) {
   return Number(amount).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// The address of a crop's Crop Details page. encodeURIComponent() makes spaces and brackets
+// safe in a URL: "Banana (Saba)" -> "/crops/Banana%20(Saba)". React Router turns it back.
+export function cropLink(cropName) {
+  return "/crops/" + encodeURIComponent(cropName);
 }

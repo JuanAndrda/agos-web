@@ -14,20 +14,8 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-// Our 10 crops. "psaName" must match PSA's name exactly, and "table" is the PSA farmgate table
-// that has the crop. Copied from the Agos seed file (read from PSA on 2026-10-16).
-export const CROPS = [
-  { name: "Tomato", psaName: "Tomato", table: "NFG/0032M4AFN05.px" },
-  { name: "Cabbage", psaName: "Cabbage", table: "NFG/0032M4AFN06.px" },
-  { name: "Carrots", psaName: "Carrot", table: "NFG/0032M4AFN02.px" },
-  { name: "Eggplant", psaName: "Eggplant, long, purple", table: "NFG/0032M4AFN05.px" },
-  { name: "Ampalaya", psaName: "Ampalaya fruit [Bitter gourd]", table: "NFG/0032M4AFN05.px" },
-  { name: "Pechay", psaName: "Pechay, native", table: "NFG/0032M4AFN06.px" },
-  { name: "Onion", psaName: "Onion, red creole (Bermuda red)", table: "NFG/0032M4AFN04.px" },
-  { name: "Squash", psaName: "Squash fruit", table: "NFG/0032M4AFN05.px" },
-  { name: "Okra", psaName: "Okra [Lady's finger]", table: "NFG/0032M4AFN05.px" },
-  { name: "Kangkong", psaName: "Kangkong [Swamp cabbage]", table: "NFG/0032M4AFN06.px" },
-];
+// The crops (and which PSA table has each one) are in crops.js, our crop catalog.
+import { CROPS, tableOf } from "./crops.js";
 
 // PSA puts dots in front of names to show levels, like "....Iloilo". We remove them.
 function clean(text) {
@@ -104,13 +92,14 @@ async function fetchTable(table, psaNames) {
 // Gets the prices of all our crops. Returns a simple list the rest of the server can use:
 // [{ crop: "Tomato", monthKey: "2026-06", month: "June 2026", pricePerKg: 48.2 }, ...]
 export async function fetchPsaPrices() {
-  // Some crops share a table, so we group them and call each table only once.
-  const tables = [...new Set(CROPS.map((crop) => crop.table))];
+  // Many crops share a table (all fruits are in table 07), so we group them and call each
+  // table only once: 6 tables for our 104 crops. Promise.all asks the 6 tables at the same time.
+  const tables = [...new Set(CROPS.map((crop) => tableOf(crop)))];
   const results = await Promise.all(
     tables.map((table) =>
       fetchTable(
         table,
-        CROPS.filter((crop) => crop.table === table).map((crop) => clean(crop.psaName))
+        CROPS.filter((crop) => tableOf(crop) === table).map((crop) => clean(crop.psaName))
       )
     )
   );

@@ -1558,14 +1558,17 @@ a.summary-box:hover {
   .page-banner-tall + .filters {
     margin: -40px 8px 0;
   }
-  /* The Marketplace filters in 2 columns, so the crops show sooner: [Town, Sort by], [Min, Max] */
+  /* The Marketplace filters in 2 columns, so the crops show sooner:
+     [Category], [Town, Sort by], [Min, Max] */
   .filter-row {
     grid-template-columns: 1fr 1fr;
     align-items: end; /* a label on 2 lines doesn't push its box lower than the box next to it */
   }
-  .filter-row .field:nth-child(2),
-  .filter-row .field:nth-child(3) {
-    order: 1; /* Min and Max price move to the second row; Town and Sort by stay on the first */
+  .filter-row .category-field {
+    grid-column: 1 / -1; /* Category gets the whole first row */
+  }
+  .filter-row .price-field {
+    order: 1; /* Min and Max price move to the last row; Town and Sort by stay above them */
   }
   /* The navbar in 3 short rows: [AgosUgnayan ... Log out], [avatar, name and badge], [page links] */
   .navbar-inner {
@@ -1686,4 +1689,162 @@ select:disabled {
   background: #f0f0ec;
   color: var(--muted);
   cursor: not-allowed;
+}
+
+/* ---------- Crop picker (CropPicker.js): search box + grouped list that scrolls ---------- */
+.crop-picker {
+  position: relative; /* the list is placed just under the box */
+}
+.crop-picker-box {
+  position: relative;
+}
+.crop-picker-box input {
+  padding-right: 44px; /* room for the ▾ button */
+}
+.crop-picker-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 44px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.crop-picker-selected {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+  color: var(--leaf);
+  font-weight: 600;
+}
+.crop-picker-list {
+  position: absolute;
+  z-index: 20; /* above the other fields of the form */
+  left: 0;
+  top: calc(100% + 4px);
+  /* As wide as the box, but at least 340px on a laptop (the crop box is narrow there), and never
+     wider than a phone screen */
+  width: max(100%, min(340px, calc(100vw - 48px)));
+  max-height: min(320px, 55vh); /* a fixed height: the list scrolls, the form doesn't grow */
+  overflow-y: auto;
+  overscroll-behavior: contain; /* scrolling the list doesn't scroll the page behind it */
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.crop-picker-group {
+  position: sticky; /* the category name stays at the top while you scroll its crops */
+  top: 0;
+  margin: 0;
+  padding: 6px 12px;
+  background: var(--leaf-soft);
+  color: var(--leaf-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.crop-picker-group span {
+  font-weight: 500;
+}
+.crop-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px; /* big enough to tap with a finger */
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.crop-option.active {
+  background: var(--harvest-soft); /* the row the mouse or arrow keys are on */
+}
+.crop-option.chosen .crop-option-name {
+  color: var(--leaf);
+  font-weight: 700;
+}
+.crop-option-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--leaf-dark);
+}
+.crop-option-price small {
+  font-weight: 400;
+  color: var(--muted);
+}
+.crop-picker-empty,
+.crop-picker-count {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* A price from an earlier month than PSA's newest month: gold text, so it isn't read as current */
+.older-month {
+  color: var(--harvest-ink) !important;
+  font-weight: 600;
+}
+.older-note {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--harvest-ink);
+}
+
+/* ---------- Market Prices: category buttons and groups ---------- */
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0 16px;
+}
+@media (max-width: 600px) {
+  /* On a phone the category buttons stay in one row that you swipe sideways */
+  .category-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .chip {
+    flex-shrink: 0;
+  }
+}
+.chip {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  min-height: 40px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.chip span {
+  color: var(--muted);
+  margin-left: 4px;
+}
+.chip[aria-pressed="true"] {
+  background: var(--leaf);
+  border-color: var(--leaf);
+  color: #fff;
+}
+.chip[aria-pressed="true"] span {
+  color: #d9eadf;
+}
+.price-group-title {
+  margin: 28px 0 12px;
+  font-size: 1.25rem;
+}
+.price-group-title span {
+  font-size: 1rem;
+  font-weight: 500;
 }

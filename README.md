@@ -97,7 +97,8 @@ Quick server checks:
 ```
 agos-web/
 ├── server/              ← our backend (Express + PSA + Firebase Admin)
-│   ├── index.js         ← starts the server: the price endpoints, and plugs in listings.js
+│   ├── index.js         ← starts the server: the crops and price endpoints, and plugs in listings.js
+│   ├── crops.js         ← our crop catalog: the 104 crops, their categories and PSA names
 │   ├── psa.js           ← talks to the PSA OpenSTAT API
 │   ├── firebaseAdmin.js ← connects the server to Firebase with its secret key
 │   ├── auth.js          ← middleware: is this person logged in? are they a farmer?
@@ -110,7 +111,7 @@ agos-web/
 │   └── src/
 │       ├── index.js, App.js, App.css
 │       ├── firebase.js       ← connects to Firebase
-│       ├── constants.js      ← the crop and town lists
+│       ├── constants.js      ← the town list (the crops come from GET /api/crops)
 │       ├── services/         ← EVERY API call lives here
 │       ├── layouts/          ← Navbar + page + Footer
 │       ├── components/       ← reusable pieces

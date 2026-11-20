@@ -9,10 +9,9 @@ import express from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./firebaseAdmin.js";
 import { requireLogin, requireFarmer } from "./auth.js";
-import { CROPS } from "./psa.js";
+import { findCrop } from "./crops.js";
 
 const router = express.Router();
-const CROP_NAMES = CROPS.map((c) => c.name); // the same 10 crops as the price pages
 
 // The only fields a farmer may send. Anything else, like ownerId, is ignored,
 // so nobody can post a listing in someone else's name.
@@ -34,8 +33,9 @@ function pickFields(body) {
 // because anyone can send a request to our server without using our form.
 function findProblems(f) {
   const problems = [];
-  if ("crop" in f && !CROP_NAMES.includes(f.crop)) {
-    problems.push("Choose one of our 10 crops.");
+  // The crop must be in our catalog (crops.js), spelled exactly like it, e.g. "Banana (Saba)"
+  if ("crop" in f && !(typeof f.crop === "string" && findCrop(f.crop) && findCrop(f.crop).name === f.crop)) {
+    problems.push("Choose a crop from our crop list.");
   }
   if ("quantityKg" in f && !(f.quantityKg > 0 && f.quantityKg <= 100000)) {
     problems.push("Quantity must be more than 0 kg and at most 100,000 kg.");

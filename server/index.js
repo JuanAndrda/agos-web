@@ -1,4 +1,5 @@
-// index.js: our Express server. It has three jobs:
+// index.js: our Express server. It has four jobs:
+// 0. Crops: GET /api/crops sends our crop catalog (crops.js) with each crop's newest PSA price.
 // 1. Prices: React asks this server, this server asks PSA, cleans the answer, remembers it
 //    for one hour, and sends back only what the page needs. If PSA is down later, we send the
 //    last prices we got instead of an error.
@@ -8,7 +9,8 @@
 
 import express from "express";
 import cors from "cors";
-import { fetchPsaPrices, CROPS } from "./psa.js";
+import { fetchPsaPrices } from "./psa.js";
+import { CROPS, CATEGORIES, findCrop } from "./crops.js";
 import listingsRouter from "./listings.js";
 import ordersRouter from "./orders.js";
 
@@ -58,18 +60,73 @@ async function getPrices() {
   }
 }
 
-// From all months, keep only the newest price of each crop
+// From all months, keep only the newest price of each crop.
+// We also add the crop's category, and "older: true" when its newest price is from an earlier
+// month than PSA's newest month (some crops have no price for the newest month). React shows
+// those with their month and an "older price" note, so nobody thinks it is this month's price.
 function latestPerCrop(prices) {
   const latest = {};
+  let newestMonth = ""; // the newest month of ALL crops, like "2026-06"
   for (const p of prices) {
     if (!latest[p.crop] || p.monthKey > latest[p.crop].monthKey) {
       latest[p.crop] = p;
     }
+    if (p.monthKey > newestMonth) newestMonth = p.monthKey;
   }
-  return Object.values(latest).sort((a, b) => a.crop.localeCompare(b.crop));
+  const result = [];
+  for (const p of Object.values(latest)) {
+    result.push({
+      ...p, // crop, monthKey, month, pricePerKg
+      category: findCrop(p.crop).category,
+      older: p.monthKey < newestMonth,
+    });
+  }
+  return result.sort((a, b) => a.crop.localeCompare(b.crop));
 }
 
 const PSA_ERROR = "We couldn't get prices from PSA right now. Please try again later.";
+
+// ---- Endpoint 0: GET /api/crops ----
+// Our whole crop catalog, grouped by category, with each crop's newest PSA price.
+// The crop picker in the listing form uses it. It ALWAYS answers 200 OK: if PSA is down, the
+// crops still come back, just with "latest: null", so farmers can still choose any crop.
+app.get("/api/crops", async (req, res) => {
+  // 1. Get the newest price of each crop. If PSA fails, we carry on without prices.
+  let latest = [];
+  let pricesWorking = true;
+  let stale = false;
+  try {
+    const data = await getPrices();
+    latest = latestPerCrop(data.prices);
+    stale = data.stale;
+  } catch (error) {
+    console.error("Crops sent without prices, because PSA didn't answer:", error.message);
+    pricesWorking = false;
+  }
+
+  // 2. Join each crop with its price (or null when PSA has no recent price for it)
+  const crops = CROPS.map((crop) => {
+    const price = latest.find((p) => p.crop === crop.name);
+    return {
+      name: crop.name,
+      category: crop.category,
+      popular: Boolean(crop.popular),
+      latest: price
+        ? { pricePerKg: price.pricePerKg, month: price.month, monthKey: price.monthKey, older: price.older }
+        : null,
+    };
+  });
+
+  // 3. Answer: 200 OK
+  res.status(200).json({
+    source: "PSA OpenSTAT",
+    categories: CATEGORIES.map((c) => c.name), // the order the picker shows them
+    pricesWorking, // false = PSA is down and we have no saved prices
+    stale,
+    count: crops.length,
+    crops,
+  });
+});
 
 // ---- Endpoint 1: GET /api/prices?search=tomato ----
 // The newest farmgate price of each crop. The search text is optional.
@@ -90,13 +147,16 @@ app.get("/api/prices", async (req, res) => {
     return res.status(502).json({ error: PSA_ERROR });
   }
 
-  // 3. Filter by the search text and answer: 200 OK with clean JSON
-  const prices = latestPerCrop(data.prices).filter((p) => p.crop.toLowerCase().includes(search));
+  // 3. Filter by the search text (crop name or category) and answer: 200 OK with clean JSON
+  const prices = latestPerCrop(data.prices).filter(
+    (p) => p.crop.toLowerCase().includes(search) || p.category.toLowerCase().includes(search)
+  );
   res.status(200).json({
     source: "PSA OpenSTAT",
     area: "Iloilo Province",
     checkedAt: new Date(data.savedAt).toISOString(), // when our server last asked PSA
     stale: data.stale, // true = PSA didn't answer, these are older prices
+    categories: CATEGORIES.map((c) => c.name), // so React can group the cards in this order
     count: prices.length,
     prices,
   });
@@ -106,7 +166,7 @@ app.get("/api/prices", async (req, res) => {
 // Every month's price of one crop, newest first (for the Crop Details page).
 app.get("/api/prices/:crop", async (req, res) => {
   // 1. Check that we track this crop
-  const crop = CROPS.find((c) => c.name.toLowerCase() === req.params.crop.toLowerCase());
+  const crop = findCrop(req.params.crop);
   if (!crop) {
     return res.status(404).json({ error: `We don't have PSA prices for "${req.params.crop}".` }); // 404 Not Found
   }
@@ -130,7 +190,8 @@ app.get("/api/prices/:crop", async (req, res) => {
     checkedAt: new Date(data.savedAt).toISOString(),
     stale: data.stale,
     crop: crop.name,
-    history,
+    category: crop.category,
+    history, // an empty list when PSA has no price for this crop in the last 2 years
   });
 });
 

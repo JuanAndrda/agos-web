@@ -5,7 +5,7 @@
 // "showFarmer" is false on My Listings, where every listing is the farmer's own,
 // so we hide the farmer's name and contact number there.
 import { Link } from "react-router-dom";
-import { formatPeso } from "../constants";
+import { formatPeso, cropLink } from "../constants";
 
 // "2026-11-18" -> "Nov 18, 2026"
 function formatDate(text) {
@@ -39,7 +39,7 @@ function ListingCard({ listing, photo, children, showFarmer = true }) {
       {/* The colored top of the card, with the crop name and the status */}
       <div className="listing-top">
         <h3>
-          <Link to={`/crops/${listing.crop}`}>{listing.crop}</Link>
+          <Link to={cropLink(listing.crop)}>{listing.crop}</Link>
         </h3>
         {/* The status is written in words, not shown by color alone */}
         <span className={sold ? "status status-sold" : "status status-available"}>

@@ -1,10 +1,12 @@
 // CropDetails.js: one crop's page. It uses TWO APIs at the same time:
 // Wikipedia (photo and description, called directly) and our server (PSA prices by month).
 // The crop name comes from the URL: /crops/Tomato -> cropName = "Tomato".
+// First we check the name in our crop catalog (GET /api/crops), then we call the two APIs.
 // The prices are shown as 3 boxes (latest, previous month, change) and a line chart (PriceChart.js).
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CROPS, formatPeso } from "../constants";
+import { formatPeso } from "../constants";
+import { getCrops } from "../services/cropsService";
 import { getCropInfo } from "../services/wikipediaService";
 import { getPriceHistory } from "../services/pricesService";
 import Loading from "../components/Loading";
@@ -13,14 +15,38 @@ import PriceChart from "../components/PriceChart";
 
 function CropDetails() {
   const { cropName: nameInUrl } = useParams();
-  // Find the crop whatever the capital letters are: /crops/tomato shows "Tomato"
-  const cropName = CROPS.find((crop) => crop.toLowerCase() === nameInUrl.toLowerCase());
-  const knownCrop = Boolean(cropName);
+
+  // Step 0: find the crop in our catalog, whatever the capital letters are (/crops/tomato -> "Tomato")
+  const [crop, setCrop] = useState(null); // like { name: "Tomato", category: "Fruit vegetables", ... }
+  const [cropLoading, setCropLoading] = useState(true);
+  const [cropError, setCropError] = useState("");
+  const cropName = crop ? crop.name : "";
+
+  async function loadCrop() {
+    setCropLoading(true);
+    setCropError("");
+    try {
+      const data = await getCrops(); // GET /api/crops
+      const found = data.crops.find((c) => c.name.toLowerCase() === nameInUrl.toLowerCase());
+      setCrop(found || null); // null = we don't have this crop
+    } catch (err) {
+      console.error(err);
+      setCropError(err.message);
+    } finally {
+      setCropLoading(false);
+    }
+  }
+
+  // Check the crop when the page opens, and again when the name in the URL changes
+  useEffect(() => {
+    loadCrop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameInUrl]);
 
   // The name in the browser tab
   useEffect(() => {
-    document.title = `${cropName || "Crop not found"} · AgosUgnayan Web`;
-  }, [cropName]);
+    if (!cropLoading) document.title = `${cropName || "Crop not found"} · AgosUgnayan Web`;
+  }, [cropName, cropLoading]);
 
   // Wikipedia part
   const [info, setInfo] = useState(null);
@@ -63,16 +89,19 @@ function CropDetails() {
     }
   }
 
-  // Load both when the page opens, and again when the crop in the URL changes ([cropName])
+  // Load both once we know the crop, and again when the crop changes ([cropName])
   useEffect(() => {
-    if (knownCrop) {
+    if (cropName) {
       loadInfo();
       loadPrices();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cropName]);
 
-  if (!knownCrop) {
+  if (cropLoading) return <Loading text="Finding the crop..." />;
+  if (cropError) return <ErrorMessage message={cropError} onRetry={loadCrop} />;
+
+  if (!crop) {
     return (
       <section>
         <Link to="/prices" className="back-link">
@@ -97,7 +126,9 @@ function CropDetails() {
       </Link>
       <div className="page-banner">
         <h1>{cropName}</h1>
-        <p>Photo and description from Wikipedia, farmgate prices from PSA.</p>
+        <p>
+          {crop.category} · Photo and description from Wikipedia, farmgate prices from PSA.
+        </p>
       </div>
 
       <div className="details-grid">
@@ -136,7 +167,10 @@ function CropDetails() {
           {pricesLoading && <Loading text="Getting prices from PSA..." />}
           {pricesError && <ErrorMessage message={pricesError} onRetry={loadPrices} />}
           {!pricesLoading && !pricesError && history.length === 0 && (
-            <p className="muted">PSA has no recent prices for {cropName}.</p>
+            <p className="muted">
+              PSA has no Iloilo price for {cropName} in the last 2 years. Farmers can still post it in the
+              Marketplace with their own price.
+            </p>
           )}
           {!pricesLoading && !pricesError && latest && (
             <>
@@ -148,13 +182,16 @@ function CropDetails() {
               {/* 3 boxes: the newest price, the month before, and the difference */}
               <div className="price-summary">
                 <div className="summary-box">
-                  <span>Latest price</span>
+                  <span>Latest available price</span>
                   <strong>₱{formatPeso(latest.pricePerKg)}</strong>
                   <small>{latest.month} · per kg</small>
+                  {/* PSA's newest month has no price for this crop, so we say this one is older */}
+                  {crop.latest && crop.latest.older && <small className="older-month">Older price: newer months have none</small>}
                 </div>
                 {previous && (
                   <div className="summary-box">
-                    <span>Previous month</span>
+                    {/* Some crops skip months, so this is the price before, which may be 2+ months back */}
+                    <span>Previous price</span>
                     <strong>₱{formatPeso(previous.pricePerKg)}</strong>
                     <small>{previous.month} · per kg</small>
                   </div>

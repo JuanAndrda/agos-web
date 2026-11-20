@@ -56,7 +56,7 @@
       "_id": "fld_prices",
       "_type": "request_group",
       "parentId": "wrk_agos",
-      "name": "1. Prices (PSA, no login)",
+      "name": "1. Crops and prices (PSA, no login)",
       "metaSortKey": 1
     },
     {
@@ -92,6 +92,18 @@
         "mimeType": "application/json",
         "text": "{\n  \"email\": \"{{ _.email }}\",\n  \"password\": \"{{ _.password }}\",\n  \"returnSecureToken\": true\n}"
       }
+    },
+    {
+      "_id": "req_13",
+      "_type": "request",
+      "parentId": "fld_prices",
+      "name": "GET the crop catalog (104 crops)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/crops",
+      "headers": [],
+      "description": "Our crop catalog (server/crops.js): every crop with its category and its newest PSA price and month. latest is null when PSA has no recent price. Always 200 OK.",
+      "metaSortKey": 1.5,
+      "body": {}
     },
     {
       "_id": "req_2",
