@@ -575,6 +575,8 @@ We tested the whole app (114 checks at phone and laptop size) and fixed what the
 
 ## 17. 104 crops and the searchable crop picker (Nov 20)
 
+(Since Nov 21 there are 71 crops with short names; see section 19. This section describes the first version.)
+
 Juan asked to grow the app from 10 crops to the vegetables and fruits that PSA has Iloilo prices for. We added **104 crops in 6 categories**. A list that long doesn't fit in a normal drop-down, so the listing form got a **crop picker you can search**.
 
 **Why 104 crops?** It is every Iloilo vegetable and fruit PSA tracks, minus "Other mango" and "Other banana" (catch-all groups, not real crops), "Cassava for industrial use" (sold to factories) and Broccoli (no Iloilo price since June 2024). 103 of the 104 have a PSA price from the last 12 months.
@@ -745,4 +747,35 @@ How it stays apart from real data:
 ### Part 6: what was tested
 
 On the Firebase emulators with the 66 listings and 45 orders: 29 API checks (every page once with no repeats, page 99 → last page, `limit=7` → 400, each filter and sort, status filter and counts) and 49 browser checks at phone (390 px) and laptop (1366 px) width: moving between pages, Per page, a filter on page 2 going back to page 1, search across pages, no matches, Accept updating the counts, adding/editing/deleting a listing changing the totals, no sideways scrolling, no console errors.
+
+## 19. Crop clean-up: 71 crops, no brackets in names (Nov 21)
+
+Juan asked to remove some crops and to remove the brackets from the names, so "Mango (Carabao)" is just "Mango". It is all in **one file**, `server/crops.js`, because every other part of the app reads the crop list from there.
+
+**Step 1: 26 crops removed** (Juan's list): Eggplant (native round), Pechay Baguio, Young jackfruit, Patola (Baguio), Papaya (Solo), Green papaya, Papaya (Hawaiian), Gabi leaves, Asparagus, Squash tops, Pao galiang, Finger pepper, Peanut (dry), Peanut (fresh), Banana (Bungulan), Banana (Lakatan), Golden melon, Grapes (green), Grapes (red), Guapple, Mango (Indian), Mango (Piko), Muskmelon, Pineapple (Formosa), Pineapple (Hawaiian), Santol. That left 78.
+
+Three names on the list did not exist in the catalog: "Onion (red)", "Gabi (Baguio)" and "Garlic (Hawaiian, native)". The catalog's **Onion** is PSA's red onion and **Garlic** is PSA's one garlic price, and both are used on the Home page and in old listings, so we left them alone.
+
+**Step 2: brackets removed, and the clashes.** Removing the brackets made some names the same, and two crops can't have one name. These 7 groups clashed:
+
+| New name | Was | We kept (PSA price reference) |
+|---|---|---|
+| Banana | Saba, Latundan, Cavendish | Saba |
+| Mongo | green labo, green shiny, yellow shiny | green, labo |
+| Gabi | Cebu, Tagalog | Cebu |
+| Ginger | native, Hawaiian | native |
+| Mandarin | Szinkom, Ladu | Szinkom |
+
+The rule was: keep the first variety in the list. The price you see for "Banana" is PSA's Banana Saba price; `psaName` in `crops.js` says which one. To use another variety, change that one `psaName`. The single names (Mango, Papaya, Pineapple, Patola) just lost their bracket. Result: **71 crops, no duplicates, none with brackets**.
+
+**Step 3: old listings and orders must not break.** Listings that are already in the database still have the old name saved, like "Banana (Saba)". We do **not** change saved records. Instead `crops.js` has an `OLD_NAMES` list (old name → new name) and two helper functions:
+
+- `findCrop(name)` also understands an old name, so an old listing still gets its category, price and photo.
+- `cleanCropName(name)` gives the name to show. `listings.js` and `orders.js` use it when they read a record (in `toJson`), so React shows "Banana". It also stops a false "locked" error when a farmer saves a listing that has open orders.
+
+New listings must use the new names: posting "Banana (Saba)" now gives **400 Bad Request**. A listing of a crop that was removed (like Santol) stays visible with the name it was saved with, but the farmer can't pick that crop again, and it has no category, photo or PSA price.
+
+**Other files:** `wikipediaService.js` (page titles renamed; all titles were already checked on Nov 20), `demo/seed.js` (demo farmers only grow crops from the new list; run `demo:reset` then `demo:seed` again to refresh demo data in the real database).
+
+**Tested:** 27 API checks (71 unique names, no brackets, the 26 are gone, every kept crop has the same category as before and its PSA price and month match PSA, old names still work, the lock, orders) and 32 browser checks at 390 px and 1366 px (picker, search, Market Prices, Marketplace, Crop Details).
 

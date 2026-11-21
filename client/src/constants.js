@@ -1,7 +1,7 @@
 // constants.js: fixed lists the forms and filters use. Choosing from a list instead of typing
 // prevents spelling mistakes (for example "Santa Barbara" vs "Sta. Barbara"). At the bottom: one small helper for showing prices.
 
-// The crops are NOT here any more: there are 104 of them, so they live in ONE place, the
+// The crops are NOT here any more: there are 70 or more of them, so they live in ONE place, the
 // server's crop catalog (server/crops.js). React gets them with GET /api/crops (cropsService.js).
 
 // Iloilo Province: 42 towns, Passi City and Iloilo City (same list as our Agos app)
@@ -23,7 +23,7 @@ export function formatPeso(amount) {
 }
 
 // The address of a crop's Crop Details page. encodeURIComponent() makes spaces and brackets
-// safe in a URL: "Banana (Saba)" -> "/crops/Banana%20(Saba)". React Router turns it back.
+// safe in a URL: "Dragon fruit" -> "/crops/Dragon%20fruit". React Router turns it back.
 export function cropLink(cropName) {
   return "/crops/" + encodeURIComponent(cropName);
 }

@@ -5,7 +5,7 @@
 // back to page 1 and ask the server again.
 // Since Nov 17 buyers get an "Add to cart" box on each card (AddToCart.js). Farmers only sell,
 // so they get no box, and their own listings say "This is your listing".
-// Since Nov 20 there are 104 crops, so there is also a Category filter (Fruits, Beans, ...).
+// Since Nov 20 there are many crops (71 since Nov 21), so there is also a Category filter (Fruits, Beans, ...).
 // The category of each crop comes from our crop catalog: GET /api/crops.
 import { useEffect, useState } from "react";
 import { getAvailableListings } from "../services/listingsService";

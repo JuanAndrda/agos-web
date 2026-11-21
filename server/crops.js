@@ -9,7 +9,11 @@
 //   psaName = PSA's own name for it, copied EXACTLY from PSA OpenSTAT (or the price won't match)
 //   popular = true for the 10 crops shown first on the Home page
 //
-// 104 crops: the Iloilo vegetables and fruits that PSA has prices for (checked on 2026-11-20).
+// 71 crops: the Iloilo vegetables and fruits that PSA has prices for (checked on 2026-11-20),
+// after the clean-up of 2026-11-21: 33 crops were removed, and every name is now short, with no
+// brackets. Where one name stood for several PSA varieties (Banana had Saba, Latundan and
+// Cavendish), we kept the FIRST variety as the price reference, so the price shown for "Banana"
+// is PSA's Banana Saba price. The psaName tells which one.
 // Left out on purpose: "Mango, Other Variety" and "Banana, Other Variety" (catch-all groups,
 // not real crops), "Cassava for industrial use" (sold to factories) and Broccoli (no Iloilo
 // price since June 2024).
@@ -34,32 +38,24 @@ export const CROPS = [
   { name: "Ampalaya", category: "Fruit vegetables", psaName: "Ampalaya fruit [Bitter gourd]", popular: true },
   { name: "Squash", category: "Fruit vegetables", psaName: "Squash fruit", popular: true },
   { name: "Okra", category: "Fruit vegetables", psaName: "Okra [Lady's finger]", popular: true },
-  { name: "Eggplant (native round)", category: "Fruit vegetables", psaName: "Eggplant, native, round" },
   { name: "Cucumber", category: "Fruit vegetables", psaName: "Cucumber" },
   { name: "Chayote", category: "Fruit vegetables", psaName: "Chayote fruit" },
   { name: "Upo", category: "Fruit vegetables", psaName: "Upo [Bottle gourd]" },
-  { name: "Patola (native)", category: "Fruit vegetables", psaName: "Patola, Native" },
-  { name: "Patola (Baguio)", category: "Fruit vegetables", psaName: "Patola, Baguio" },
-  { name: "Green papaya", category: "Fruit vegetables", psaName: "Papaya, green" },
-  { name: "Young jackfruit", category: "Fruit vegetables", psaName: "Jackfruit, young" },
+  { name: "Patola", category: "Fruit vegetables", psaName: "Patola, Native" },
   { name: "Banana blossom", category: "Fruit vegetables", psaName: "Banana Blossom" },
 
   // ---- Leafy vegetables (PSA table 06) ----
   { name: "Cabbage", category: "Leafy vegetables", psaName: "Cabbage", popular: true },
   { name: "Pechay", category: "Leafy vegetables", psaName: "Pechay, native", popular: true },
   { name: "Kangkong", category: "Leafy vegetables", psaName: "Kangkong [Swamp cabbage]", popular: true },
-  { name: "Pechay Baguio", category: "Leafy vegetables", psaName: "Chinese cabbage (Wongbok, Pechay Baguio)" },
   { name: "Alugbati", category: "Leafy vegetables", psaName: "Alugbati" },
   { name: "Malunggay", category: "Leafy vegetables", psaName: "Malunggay leaves" },
   { name: "Saluyot", category: "Leafy vegetables", psaName: "Saluyot" },
   { name: "Camote tops", category: "Leafy vegetables", psaName: "Camote tops" },
-  { name: "Squash tops", category: "Leafy vegetables", psaName: "Squash tops" },
-  { name: "Gabi leaves", category: "Leafy vegetables", psaName: "Gabi, leaves with stem" },
   { name: "Mustard", category: "Leafy vegetables", psaName: "Mustard" },
   { name: "Chili leaves", category: "Leafy vegetables", psaName: "Chili pepper leaves" },
   { name: "Lettuce", category: "Leafy vegetables", psaName: "Lettuce" },
   { name: "Cauliflower", category: "Leafy vegetables", psaName: "Cauliflower" },
-  { name: "Asparagus", category: "Leafy vegetables", psaName: "Asparagus" },
 
   // ---- Root crops (PSA table 02) ----
   { name: "Carrots", category: "Root crops", psaName: "Carrot", popular: true },
@@ -67,9 +63,7 @@ export const CROPS = [
   { name: "Cassava", category: "Root crops", psaName: "Cassava for food, fresh tubers" },
   { name: "Ubi", category: "Root crops", psaName: "Ubi [Greater yam]" },
   { name: "Radish", category: "Root crops", psaName: "Radish" },
-  { name: "Gabi (Cebu)", category: "Root crops", psaName: "Gabi for ginataan, Cebu [Taro]" },
-  { name: "Gabi (Tagalog)", category: "Root crops", psaName: "Gabi for sinigang, Tagalog [Taro]" },
-  { name: "Pao galiang", category: "Root crops", psaName: "Pao Galiang" },
+  { name: "Gabi", category: "Root crops", psaName: "Gabi for ginataan, Cebu [Taro]" },
 
   // ---- Condiments (PSA table 04) ----
   { name: "Onion", category: "Condiments", psaName: "Onion, red creole (Bermuda red)", popular: true },
@@ -77,10 +71,8 @@ export const CROPS = [
   { name: "Garlic", category: "Condiments", psaName: "Garlic, dried bulb" },
   { name: "Spring onion", category: "Condiments", psaName: "Spring onion" },
   { name: "Siling labuyo", category: "Condiments", psaName: "Chili pepper fruit (Siling labuyo)" },
-  { name: "Finger pepper", category: "Condiments", psaName: "Pepper, finger" },
   { name: "Bell pepper", category: "Condiments", psaName: "Pepper, bell" },
-  { name: "Ginger (native)", category: "Condiments", psaName: "Ginger, Native" },
-  { name: "Ginger (Hawaiian)", category: "Condiments", psaName: "Ginger, Hawaiian" },
+  { name: "Ginger", category: "Condiments", psaName: "Ginger, Native" },
   { name: "Leeks", category: "Condiments", psaName: "Onion Leeks" },
 
   // ---- Beans (PSA table 03) ----
@@ -88,29 +80,15 @@ export const CROPS = [
   { name: "Snap beans", category: "Beans", psaName: "Habitchuelas [Snap beans]" },
   { name: "Sigarilyas", category: "Beans", psaName: "Sigarilyas [Winged beans]" },
   { name: "Kadios", category: "Beans", psaName: "Kadios [Pigeon pea]" },
-  { name: "Mongo (green, labo)", category: "Beans", psaName: "Mongo [Mungbean], green, labo" },
-  { name: "Mongo (green, shiny)", category: "Beans", psaName: "Mongo [Mungbean], green, shiny" },
-  { name: "Mongo (yellow, shiny)", category: "Beans", psaName: "Mongo [Mungbean], yellow, shiny" },
-  { name: "Peanut (dry)", category: "Beans", psaName: "Peanut, with shell, dry" },
-  { name: "Peanut (fresh)", category: "Beans", psaName: "Peanut, with shell, fresh" },
+  { name: "Mongo", category: "Beans", psaName: "Mongo [Mungbean], green, labo" },
   { name: "Patani", category: "Beans", psaName: "Patani [Lima beans]" },
 
   // ---- Fruits (PSA table 07) ----
-  { name: "Mango (Carabao)", category: "Fruits", psaName: "Mango Carabao, green" },
-  { name: "Mango (Piko)", category: "Fruits", psaName: "Mango Piko, green" },
-  { name: "Mango (Indian)", category: "Fruits", psaName: "Mango Indian, green" },
-  { name: "Banana (Saba)", category: "Fruits", psaName: "Banana Saba, green" },
-  { name: "Banana (Lakatan)", category: "Fruits", psaName: "Banana Lakatan, green" },
-  { name: "Banana (Latundan)", category: "Fruits", psaName: "Banana Latundan, green" },
-  { name: "Banana (Bungulan)", category: "Fruits", psaName: "Banana Bungulan, green" },
-  { name: "Banana (Cavendish)", category: "Fruits", psaName: "Banana Cavendish" },
+  { name: "Mango", category: "Fruits", psaName: "Mango Carabao, green" },
+  { name: "Banana", category: "Fruits", psaName: "Banana Saba, green" },
   { name: "Calamansi", category: "Fruits", psaName: "Calamansi" },
-  { name: "Pineapple (Hawaiian)", category: "Fruits", psaName: "Pineapple Hawaiian" },
-  { name: "Pineapple (native)", category: "Fruits", psaName: "Pineapple native" },
-  { name: "Pineapple (Formosa)", category: "Fruits", psaName: "Pineapple Formosa" },
-  { name: "Papaya (Hawaiian)", category: "Fruits", psaName: "Papaya Hawaiian" },
-  { name: "Papaya (Solo)", category: "Fruits", psaName: "Papaya Solo" },
-  { name: "Papaya (native)", category: "Fruits", psaName: "Papaya native" },
+  { name: "Pineapple", category: "Fruits", psaName: "Pineapple native" },
+  { name: "Papaya", category: "Fruits", psaName: "Papaya native" },
   { name: "Pomelo", category: "Fruits", psaName: "Pomelo" },
   { name: "Rambutan", category: "Fruits", psaName: "Rambutan" },
   { name: "Avocado", category: "Fruits", psaName: "Avocado" },
@@ -121,8 +99,6 @@ export const CROPS = [
   { name: "Duhat", category: "Fruits", psaName: "Duhat" },
   { name: "Ripe jackfruit", category: "Fruits", psaName: "Jackfruit, ripe" },
   { name: "Marang", category: "Fruits", psaName: "Marang" },
-  { name: "Muskmelon", category: "Fruits", psaName: "Muskmelon" },
-  { name: "Santol", category: "Fruits", psaName: "Santol native" },
   { name: "Tambis", category: "Fruits", psaName: "Tambis" },
   { name: "Camachile", category: "Fruits", psaName: "Camatchili" },
   { name: "Lemon", category: "Fruits", psaName: "Lemon" },
@@ -130,26 +106,54 @@ export const CROPS = [
   { name: "Sineguelas", category: "Fruits", psaName: "Siniguelas [Jamaica plum]" },
   { name: "Starapple", category: "Fruits", psaName: "Starapple" },
   { name: "Watermelon", category: "Fruits", psaName: "Watermelon" },
-  { name: "Grapes (green)", category: "Fruits", psaName: "Grapes, green" },
-  { name: "Grapes (red)", category: "Fruits", psaName: "Grapes, red" },
   { name: "Honeydew melon", category: "Fruits", psaName: "Honeydew melon" },
-  { name: "Golden melon", category: "Fruits", psaName: "Golden Melon" },
-  { name: "Mandarin (Szinkom)", category: "Fruits", psaName: "Mandarin Szinkom" },
-  { name: "Mandarin (Ladu)", category: "Fruits", psaName: "Mandarin Ladu" },
+  { name: "Mandarin", category: "Fruits", psaName: "Mandarin Szinkom" },
   { name: "Mangosteen", category: "Fruits", psaName: "Mangosteen" },
   { name: "Tamarind", category: "Fruits", psaName: "Tamarind" },
-  { name: "Guapple", category: "Fruits", psaName: "Guapple" },
   { name: "Guava", category: "Fruits", psaName: "Guava" },
   { name: "Lanzones", category: "Fruits", psaName: "Lanzones" },
   { name: "Canistel", category: "Fruits", psaName: "Canistel" },
   { name: "Durian", category: "Fruits", psaName: "Durian" },
 ];
 
+// The names we used until Nov 20, before the brackets were removed. Listings and orders that
+// are already in the database still have the old name saved, and we never rewrite them, so this
+// list tells us which crop they mean. ("Banana (Latundan)" is now just "Banana".)
+// Crops that were REMOVED are not here: an old listing of those keeps its name as it was saved.
+export const OLD_NAMES = {
+  "Patola (native)": "Patola",
+  "Gabi (Cebu)": "Gabi",
+  "Ginger (native)": "Ginger",
+  "Mongo (green, labo)": "Mongo",
+  "Mango (Carabao)": "Mango",
+  "Banana (Saba)": "Banana",
+  "Pineapple (native)": "Pineapple",
+  "Papaya (native)": "Papaya",
+  "Mandarin (Szinkom)": "Mandarin",
+  "Gabi (Tagalog)": "Gabi",
+  "Ginger (Hawaiian)": "Ginger",
+  "Mongo (green, shiny)": "Mongo",
+  "Mongo (yellow, shiny)": "Mongo",
+  "Banana (Latundan)": "Banana",
+  "Banana (Cavendish)": "Banana",
+  "Mandarin (Ladu)": "Mandarin",
+};
+
 // Finds a crop by its name, whatever the capital letters are ("tomato" finds "Tomato").
-// Gives back undefined when we don't have that crop.
+// An old name from OLD_NAMES finds the crop it became. Gives back undefined when we don't have it.
 export function findCrop(name) {
   const wanted = String(name || "").trim().toLowerCase();
-  return CROPS.find((crop) => crop.name.toLowerCase() === wanted);
+  const found = CROPS.find((crop) => crop.name.toLowerCase() === wanted);
+  if (found) return found;
+  const oldName = Object.keys(OLD_NAMES).find((old) => old.toLowerCase() === wanted);
+  return oldName ? CROPS.find((crop) => crop.name === OLD_NAMES[oldName]) : undefined;
+}
+
+// The name to SHOW for a crop saved in the database: the current name, or the saved text
+// as it is when the crop was removed from the catalog.
+export function cleanCropName(name) {
+  const crop = findCrop(name);
+  return crop ? crop.name : name;
 }
 
 // The PSA table of a crop: the table of its category

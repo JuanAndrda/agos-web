@@ -4,74 +4,43 @@
 
 // Many of our crop names are not Wikipedia page titles, so we say which page to use.
 // Crops that are not in this list use their own name ("Tomato" -> the "Tomato" page).
-// Varieties share one page (all 3 papayas use "Papaya"), so their photo is the same.
-// A crop with no Wikipedia page or photo just shows its first letter (for example Asparagus,
-// whose page has no summary photo). All titles were checked on 2026-11-20.
+// A crop with no Wikipedia page or photo just shows its first letter. All titles were
+// checked on 2026-11-20.
 const WIKI_TITLES = {
   // Fruit vegetables
   Eggplant: "Eggplant",
-  "Eggplant (native round)": "Eggplant",
   Ampalaya: "Momordica charantia", // bitter gourd
   Squash: "Calabaza", // kalabasa
   Upo: "Calabash", // bottle gourd
-  "Patola (native)": "Luffa acutangula",
-  "Patola (Baguio)": "Luffa aegyptiaca",
-  "Green papaya": "Papaya",
-  "Young jackfruit": "Jackfruit",
+  Patola: "Luffa acutangula",
   "Banana blossom": "Banana blossom",
   // Leafy vegetables
   Pechay: "Bok choy",
   Kangkong: "Ipomoea aquatica", // water spinach
-  "Pechay Baguio": "Napa cabbage",
   Alugbati: "Basella alba",
   Malunggay: "Moringa oleifera",
   Saluyot: "Corchorus olitorius",
   "Camote tops": "Sweet potato",
-  "Squash tops": "Calabaza",
-  "Gabi leaves": "Taro",
   Mustard: "Brassica juncea",
   "Chili leaves": "Capsicum frutescens",
   // Root crops
   Carrots: "Carrot",
   Camote: "Sweet potato",
   Ubi: "Dioscorea alata",
-  "Gabi (Cebu)": "Taro",
-  "Gabi (Tagalog)": "Taro",
-  "Pao galiang": "Xanthosoma sagittifolium",
+  Gabi: "Taro",
   // Condiments
   Onion: "Red onion",
   "Spring onion": "Scallion",
   "Siling labuyo": "Siling labuyo",
-  "Finger pepper": "Siling haba",
-  "Ginger (native)": "Ginger",
-  "Ginger (Hawaiian)": "Ginger",
   Leeks: "Leek",
   // Beans
   Sitao: "Yardlong bean",
   "Snap beans": "Green bean",
   Sigarilyas: "Winged bean",
   Kadios: "Pigeon pea",
-  "Mongo (green, labo)": "Mung bean",
-  "Mongo (green, shiny)": "Mung bean",
-  "Mongo (yellow, shiny)": "Mung bean",
-  "Peanut (dry)": "Peanut",
-  "Peanut (fresh)": "Peanut",
+  Mongo: "Mung bean",
   Patani: "Lima bean",
   // Fruits
-  "Mango (Carabao)": "Carabao mango",
-  "Mango (Piko)": "Mango",
-  "Mango (Indian)": "Mango",
-  "Banana (Saba)": "Saba banana",
-  "Banana (Lakatan)": "Lakatan banana",
-  "Banana (Latundan)": "Latundan banana",
-  "Banana (Bungulan)": "Banana",
-  "Banana (Cavendish)": "Cavendish banana",
-  "Pineapple (Hawaiian)": "Pineapple",
-  "Pineapple (native)": "Pineapple",
-  "Pineapple (Formosa)": "Pineapple",
-  "Papaya (Hawaiian)": "Papaya",
-  "Papaya (Solo)": "Papaya",
-  "Papaya (native)": "Papaya",
   Atis: "Sugar-apple",
   Guyabano: "Soursop",
   Chico: "Sapodilla",
@@ -79,21 +48,14 @@ const WIKI_TITLES = {
   Duhat: "Syzygium cumini",
   "Ripe jackfruit": "Jackfruit",
   Marang: "Artocarpus odoratissimus",
-  Santol: "Sandoricum koetjape",
   Tambis: "Syzygium aqueum",
   Camachile: "Pithecellobium dulce",
   Orange: "Orange (fruit)",
   Sineguelas: "Spondias purpurea",
   Starapple: "Chrysophyllum cainito",
-  Muskmelon: "Cucumis melo", // "Muskmelon" is a list of meanings, not one page
-  "Grapes (green)": "Grape",
-  "Grapes (red)": "Grape",
   "Honeydew melon": "Honeydew (melon)",
-  "Golden melon": "Canary melon",
-  "Mandarin (Szinkom)": "Mandarin orange",
-  "Mandarin (Ladu)": "Mandarin orange",
+  Mandarin: "Mandarin orange",
   Mangosteen: "Purple mangosteen",
-  Guapple: "Guava",
   Lanzones: "Lansium parasiticum",
   Canistel: "Pouteria campechiana",
 };

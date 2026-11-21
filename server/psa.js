@@ -93,7 +93,7 @@ async function fetchTable(table, psaNames) {
 // [{ crop: "Tomato", monthKey: "2026-06", month: "June 2026", pricePerKg: 48.2 }, ...]
 export async function fetchPsaPrices() {
   // Many crops share a table (all fruits are in table 07), so we group them and call each
-  // table only once: 6 tables for our 104 crops. Promise.all asks the 6 tables at the same time.
+  // table only once: 6 tables for our 71 crops. Promise.all asks the 6 tables at the same time.
   const tables = [...new Set(CROPS.map((crop) => tableOf(crop)))];
   const results = await Promise.all(
     tables.map((table) =>

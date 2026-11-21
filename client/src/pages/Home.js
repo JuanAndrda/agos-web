@@ -37,7 +37,7 @@ function Home({ user }) {
     setError("");
     try {
       const data = await getCrops(); // GET /api/crops -> every crop with its newest price
-      // 104 tiles would be too many for the Home page, so we show the 10 "popular" crops.
+      // 71 tiles would be too many for the Home page, so we show the 10 "popular" crops.
       // The rest are on Market Prices.
       const popularCrops = data.crops.filter((c) => c.popular);
       setCrops(data.crops);
@@ -92,7 +92,7 @@ function Home({ user }) {
           </div>
           <div className="hero-stats">
             <p>
-              <strong>{crops.length || 104} crops</strong>
+              <strong>{crops.length || 71} crops</strong>
               <span>tracked by PSA</span>
             </p>
             <p>

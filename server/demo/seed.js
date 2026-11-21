@@ -27,11 +27,11 @@ import { DEMO_FARMERS, DEMO_BUYERS, demoEmail } from "./people.js";
 // like real farmers who set their own price.
 const FARMS = {
   farmer1: [["Tomato", 42], ["Eggplant", 40], ["Ampalaya", 45], ["Okra", 48], ["Sitao", 46], ["Squash", 25], ["Pechay", 62], ["Kangkong", 18], ["Cucumber", 27], ["Siling labuyo", 95], ["Calamansi", 36]],
-  farmer2: [["Cabbage", 32], ["Carrots", 42], ["Pechay Baguio", 31], ["Lettuce", 240], ["Cauliflower", 118], ["Bell pepper", 88], ["Spring onion", 175], ["Radish", 23], ["Chayote", 44], ["Snap beans", 30], ["Patola (Baguio)", 17]],
-  farmer3: [["Onion", 52], ["Shallot", 50], ["Garlic", 68], ["Ginger (native)", 98], ["Finger pepper", 53], ["Tomato", 39], ["Eggplant (native round)", 68], ["Upo", 15], ["Patola (native)", 26], ["Malunggay", 42], ["Alugbati", 40]],
-  farmer4: [["Banana (Saba)", 15], ["Banana (Lakatan)", 41], ["Banana (Latundan)", 19], ["Papaya (Solo)", 34], ["Papaya (native)", 22], ["Green papaya", 16], ["Young jackfruit", 12], ["Banana blossom", 21], ["Camote", 33], ["Cassava", 19], ["Gabi (Cebu)", 21]],
-  farmer5: [["Mango (Carabao)", 65], ["Mango (Piko)", 60], ["Mango (Indian)", 24], ["Pineapple (native)", 17], ["Pomelo", 32], ["Rambutan", 40], ["Avocado", 45], ["Atis", 62], ["Guyabano", 24], ["Chico", 30], ["Santol", 26]],
-  farmer6: [["Kadios", 90], ["Mongo (green, labo)", 70], ["Mongo (green, shiny)", 61], ["Peanut (dry)", 45], ["Sigarilyas", 44], ["Ubi", 26], ["Gabi (Tagalog)", 10], ["Camote tops", 28], ["Saluyot", 34], ["Squash tops", 20], ["Watermelon", 48]],
+  farmer2: [["Cabbage", 32], ["Carrots", 42], ["Mustard", 96], ["Lettuce", 240], ["Cauliflower", 118], ["Bell pepper", 88], ["Spring onion", 175], ["Radish", 23], ["Chayote", 44], ["Snap beans", 30], ["Chili leaves", 98]],
+  farmer3: [["Onion", 52], ["Shallot", 50], ["Garlic", 68], ["Ginger", 98], ["Leeks", 42], ["Tomato", 39], ["Cucumber", 28], ["Upo", 15], ["Patola", 26], ["Malunggay", 42], ["Alugbati", 40]],
+  farmer4: [["Banana", 15], ["Papaya", 23], ["Banana blossom", 21], ["Camote", 33], ["Cassava", 19], ["Gabi", 21], ["Ripe jackfruit", 31], ["Guava", 36], ["Lemon", 21], ["Canistel", 11], ["Tamarind", 41]],
+  farmer5: [["Mango", 65], ["Pineapple", 17], ["Pomelo", 32], ["Rambutan", 40], ["Avocado", 45], ["Atis", 62], ["Guyabano", 24], ["Chico", 30], ["Dragon fruit", 148], ["Duhat", 52], ["Marang", 46]],
+  farmer6: [["Kadios", 90], ["Mongo", 70], ["Sigarilyas", 44], ["Ubi", 26], ["Gabi", 10], ["Camote tops", 28], ["Saluyot", 34], ["Watermelon", 48], ["Patani", 52], ["Mandarin", 41], ["Orange", 40]],
 };
 
 const NOTES = [

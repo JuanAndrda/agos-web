@@ -9,7 +9,7 @@ import express from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./firebaseAdmin.js";
 import { requireLogin, requireFarmer } from "./auth.js";
-import { findCrop } from "./crops.js";
+import { findCrop, cleanCropName } from "./crops.js";
 import { readPageQuery, paginate } from "./paginate.js";
 
 const router = express.Router();
@@ -34,7 +34,7 @@ function pickFields(body) {
 // because anyone can send a request to our server without using our form.
 function findProblems(f) {
   const problems = [];
-  // The crop must be in our catalog (crops.js), spelled exactly like it, e.g. "Banana (Saba)"
+  // The crop must be in our catalog (crops.js), spelled exactly like it, e.g. "Banana"
   if ("crop" in f && !(typeof f.crop === "string" && findCrop(f.crop) && findCrop(f.crop).name === f.crop)) {
     problems.push("Choose a crop from our crop list.");
   }
@@ -66,7 +66,9 @@ function findProblems(f) {
 // We send React one plain object, with the time as text like "2026-11-15T12:30:00.000Z".
 function toJson(doc) {
   const data = doc.data();
-  return { id: doc.id, ...data, createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null };
+  // cleanCropName: a listing saved as "Banana (Saba)" before Nov 21 is shown as "Banana".
+  // The database record itself is not changed.
+  return { id: doc.id, ...data, crop: cleanCropName(data.crop), createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null };
 }
 
 // Counts the orders of one listing that are still "open": "pending" (waiting for the farmer)
@@ -265,7 +267,9 @@ router.patch("/:id", requireLogin, async (req, res) => {
       const open = countOpenOrders(orders.docs);
       if (open.pending + open.accepted > 0) {
         for (const field of LOCKED_FIELDS) {
-          if (field in changes && changes[field] !== current.data()[field]) {
+          // the saved crop may still have its old name, so compare the clean names
+          const before = field === "crop" ? cleanCropName(current.data().crop) : current.data()[field];
+          if (field in changes && changes[field] !== before) {
             // 409 Conflict: the change clashes with orders that buyers already sent
             return {
               status: 409,

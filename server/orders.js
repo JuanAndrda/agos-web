@@ -14,6 +14,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./firebaseAdmin.js";
 import { requireLogin, requireFarmer, requireBuyer } from "./auth.js";
 import { readPageQuery, paginate } from "./paginate.js";
+import { cleanCropName } from "./crops.js";
 
 const router = express.Router();
 const MAX_ITEMS = 20; // the most different listings in one checkout
@@ -21,7 +22,7 @@ const MAX_ITEMS = 20; // the most different listings in one checkout
 // Firestore saves the time as a Timestamp. We send React text like "2026-11-17T12:30:00.000Z".
 function toJson(doc) {
   const data = doc.data();
-  return { id: doc.id, ...data, createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null };
+  return { id: doc.id, ...data, crop: cleanCropName(data.crop), createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null };
 }
 
 // Newest orders first
@@ -112,7 +113,7 @@ router.post("/", requireLogin, requireBuyer, async (req, res) => {
 
         const order = {
           listingId: listing.id,
-          crop: data.crop,
+          crop: cleanCropName(data.crop),
           quantityKg: quantityKg,
           pricePerKg: data.pricePerKg, // the price at the time of ordering
           total: Math.round(quantityKg * data.pricePerKg * 100) / 100, // rounded to centavos

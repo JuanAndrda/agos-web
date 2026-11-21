@@ -1,5 +1,5 @@
 // CropPicker.js: a search box with a drop-down list, for choosing one crop out of about 100.
-// A normal <select> with 104 options is a very long list that is hard to use on a phone,
+// A normal <select> with 70 or more options is a very long list that is hard to use on a phone,
 // so instead:
 //   - you TYPE part of the name ("mang") and the list shows only the crops that match,
 //   - the crops are GROUPED by category (Fruit vegetables, Leafy vegetables, ... Fruits),

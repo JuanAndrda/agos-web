@@ -109,7 +109,7 @@ npm run demo:reset
 agos-web/
 ├── server/              ← our backend (Express + PSA + Firebase Admin)
 │   ├── index.js         ← starts the server: the crops and price endpoints, and plugs in listings.js
-│   ├── crops.js         ← our crop catalog: the 104 crops, their categories and PSA names
+│   ├── crops.js         ← our crop catalog: the 71 crops, their categories and PSA names
 │   ├── psa.js           ← talks to the PSA OpenSTAT API
 │   ├── firebaseAdmin.js ← connects the server to Firebase with its secret key
 │   ├── auth.js          ← middleware: is this person logged in? are they a farmer?

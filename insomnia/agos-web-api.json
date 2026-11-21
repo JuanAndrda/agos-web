@@ -97,7 +97,7 @@
       "_id": "req_13",
       "_type": "request",
       "parentId": "fld_prices",
-      "name": "GET the crop catalog (104 crops)",
+      "name": "GET the crop catalog (71 crops)",
       "method": "GET",
       "url": "{{ _.base_url }}/api/crops",
       "headers": [],
